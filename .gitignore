@@ -1,0 +1,51 @@
+# Reference files (not part of the project deliverable)
+src/index.html
+
+# Dependencies
+node_modules/
+
+# Wrangler
+.wrangler/
+
+# Secrets - NEVER commit
+.env
+secrets/
+*.pem
+*.key
+
+# Claude Code artifacts
+.claude/
+.history/
+.plans/
+claude-mcp*.txt
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+worker-configuration.d.ts
+
+# Personal docs (contains infrastructure details)
+docs/ARCHITECTURE.md
+
+# Scratch/notes (local session artifacts)
+notes/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+.env.deploy
+
+# MD CSS
+**/obsidian-vscode.css
