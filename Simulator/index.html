@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Once Human DPS Simulator — Phase 0+1 Engine</title>
+  <style>
+    body { font-family: 'Courier New', monospace; background: #1a1a2e; color: #e0e0e0; margin: 2em; }
+    h1 { color: #00d4ff; }
+    h2 { color: #ff6b6b; margin-top: 2em; }
+    pre { background: #16213e; padding: 1em; border-radius: 6px; overflow-x: auto; line-height: 1.4; }
+    .pass { color: #4caf50; }
+    .fail { color: #f44336; font-weight: bold; }
+    .section { border-left: 3px solid #00d4ff; padding-left: 1em; margin: 1em 0; }
+    table { border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #333; padding: 6px 12px; text-align: right; }
+    th { background: #16213e; color: #00d4ff; }
+    td:first-child, th:first-child { text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Once Human DPS Simulator — Phase 0+1 Core Engine</h1>
+  <p>Deterministic damage calculator. Console + page output. No UI controls (Phase 2).</p>
+  <div id="output"></div>
+
+<script>
+// ============================================================================
+// SECTION 1: SCALING CONSTANTS
+// From phase-0-1-data-engine.md §2.1
+// ============================================================================
+
+const STAR_MULT = { 1: 1.0, 2: 1.1, 3: 1.2, 4: 1.3, 5: 1.4, 6: 1.5 };
+const LEVEL_MULT = { 1: 1.0, 2: 1.05, 3: 1.10, 4: 1.15, 5: 1.20 };
+const CALIB_BONUS = { 0: 0.00, 1: 0.02, 2: 0.04, 3: 0.06, 4: 0.08, 5: 0.10, 6: 0.12 };
+
+const INTEGER_STATS = ['projectiles_per_shot', 'magazine_capacity'];
+
+// Crit x Weakspot interaction model.
+// true = multiplicative (separate buckets, lReDragol model)
+// false = additive (same bucket, Gemini community model)
+// UNVERIFIED — toggle this one constant to switch models.
+const CRIT_WEAKSPOT_MULTIPLICATIVE = true;
+
+// Default sustained DPS magazine count
+const SUSTAINED_MAG_COUNT = 3;
+
+// Minimum reload time floor (seconds)
+const MIN_RELOAD_TIME = 0.5;
+
+
+// ============================================================================
+// SECTION 2: WEAPON DATABASE (hand-curated from lReDragol/OnceHuman_Tools)
+// 5 weapons covering diverse archetypes
+// ============================================================================
+
+const WEAPON_DB = {
+  de50_jaws: {
+    id: 'de50_jaws',
+    name: 'DE.50 - Jaws',
+    type: 'pistol',
+    rarity: 'legendary',
+    keyword: 'unstable_bomber',
+    base_stats: {
+      damage_per_projectile: 128,
+      projectiles_per_shot: 1,
+      fire_rate: 190,
+      magazine_capacity: 8,
+      crit_rate_percent: 6,
+      weakspot_damage_percent: 60,
+      crit_damage_percent: 25,
+      stability: 46,
+      accuracy: 76,
+      range: 48,
+      reload_time_seconds: 2.0,
+      reload_speed_points: 63
+    }
+  },
+
+  s870_sandstorm: {
+    id: 's870_sandstorm',
+    name: 'S870 - Sandstorm',
+    type: 'shotgun',
+    rarity: 'fine',
+    keyword: 'fortress_warfare',
+    base_stats: {
+      damage_per_projectile: 48,
+      projectiles_per_shot: 6,
+      fire_rate: 80,
+      magazine_capacity: 8,
+      crit_rate_percent: 10,
+      weakspot_damage_percent: 25,
+      crit_damage_percent: 30,
+      stability: 67,
+      accuracy: 49,
+      range: 58,
+      reload_time_seconds: 2.5,
+      reload_speed_points: 47
+    }
+  },
+
+  mps5_blue_tiger: {
+    id: 'mps5_blue_tiger',
+    name: 'MPS5 - Blue Tiger',
+    type: 'smg',
+    rarity: 'fine',
+    keyword: 'bounce',
+    base_stats: {
+      damage_per_projectile: 30,
+      projectiles_per_shot: 1,
+      fire_rate: 750,
+      magazine_capacity: 30,
+      crit_rate_percent: 8,
+      weakspot_damage_percent: 55,
+      crit_damage_percent: 30,
+      stability: 50,
+      accuracy: 53,
+      range: 67,
+      reload_time_seconds: 2.4,
+      reload_speed_points: 50
+    }
+  },
+
+  socr_the_last_valor: {
+    id: 'socr_the_last_valor',
+    name: 'SOCR - The Last Valor',
+    type: 'assault_rifle',
+    rarity: 'legendary',
+    keyword: 'shrapnel',
+    base_stats: {
+      damage_per_projectile: 45,
+      projectiles_per_shot: 1,
+      fire_rate: 515,
+      magazine_capacity: 30,
+      crit_rate_percent: 6,
+      weakspot_damage_percent: 60,
+      crit_damage_percent: 27,
+      stability: 39,
+      accuracy: 51,
+      range: 75,
+      reload_time_seconds: 2.2,
+      reload_speed_points: 56
+    }
+  },
+
+  kvd_boom_boom: {
+    id: 'kvd_boom_boom',
+    name: 'KVD - Boom! Boom!',
+    type: 'lmg',
+    rarity: 'legendary',
+    keyword: 'burn',
+    base_stats: {
+      damage_per_projectile: 44,
+      projectiles_per_shot: 1,
+      fire_rate: 500,
+      magazine_capacity: 100,
+      crit_rate_percent: 10,
+      weakspot_damage_percent: 40,
+      crit_damage_percent: 30,
+      stability: 43,
+      accuracy: 43,
+      range: 59,
+      reload_time_seconds: 3.2,
+      reload_speed_points: 24
+    }
+  }
+};
+
+
+// ============================================================================
+// SECTION 3: MOD DATABASE (hand-curated, flat-stat mods for testing)
+// ============================================================================
+
+const MOD_DB = {
+  sharpshooter_instinct: {
+    name: 'Sharpshooter Instinct',
+    slot: 'helmet',
+    description: 'Crit Rate +8%, Crit DMG +15%',
+    effects: [
+      { type: 'increase_stat', stat: 'crit_rate_percent', value: 8 },
+      { type: 'increase_stat', stat: 'crit_damage_percent', value: 15 }
+    ]
+  },
+
+  most_wanted: {
+    name: 'Most Wanted',
+    slot: 'gloves',
+    description: 'Attack +12%',
+    effects: [
+      { type: 'increase_stat', stat: 'attack_percent', value: 12 }
+    ]
+  },
+
+  weakness_exploit: {
+    name: 'Weakness Exploit',
+    slot: 'pants',
+    description: 'Weakspot DMG +20%',
+    effects: [
+      { type: 'increase_stat', stat: 'weakspot_damage_percent', value: 20 }
+    ]
+  }
+};
+
+
+// ============================================================================
+// SECTION 4: STAT AGGREGATION PIPELINE
+// From phase-0-1-data-engine.md §3.1
+// ============================================================================
+
+/**
+ * Scale a weapon's base stats by star, level, and calibration.
+ * @param {object} baseStats - Weapon base_stats object
+ * @param {number} star - Star level 1-6
+ * @param {number} level - Character/weapon level 1-5
+ * @param {number} calibration - Calibration level 0-6
+ * @returns {object} Scaled stats
+ */
+function scaleWeaponStats(baseStats, star, level, calibration) {
+  const scaled = {};
+  const starMult = STAR_MULT[star] || 1;
+  const levelMult = LEVEL_MULT[level] || 1;
+  const calBonus = CALIB_BONUS[calibration] || 0;
+
+  for (const [stat, value] of Object.entries(baseStats)) {
+    if (typeof value !== 'number') continue;
+
+    let scaledValue = value * starMult * levelMult * (1 + calBonus);
+
+    if (INTEGER_STATS.includes(stat)) {
+      scaledValue = Math.round(scaledValue);
+    }
+
+    scaled[stat] = scaledValue;
+  }
+
+  return scaled;
+}
+
+/**
+ * Apply mod effects to a stats object (static effects only).
+ * Handles both single stat and array forms.
+ * @param {object} stats - Mutable stats object
+ * @param {object} mod - Mod from MOD_DB
+ */
+function applyModEffects(stats, mod) {
+  if (!mod || !mod.effects) return;
+
+  for (const effect of mod.effects) {
+    if (effect.type === 'increase_stat') {
+      const statKeys = Array.isArray(effect.stat) ? effect.stat : [effect.stat];
+      const values = Array.isArray(effect.value) ? effect.value : [effect.value];
+      for (let i = 0; i < statKeys.length; i++) {
+        const key = statKeys[i];
+        const val = values[Math.min(i, values.length - 1)];
+        stats[key] = (stats[key] || 0) + val;
+      }
+    } else if (effect.type === 'decrease_stat') {
+      const statKeys = Array.isArray(effect.stat) ? effect.stat : [effect.stat];
+      const values = Array.isArray(effect.value) ? effect.value : [effect.value];
+      for (let i = 0; i < statKeys.length; i++) {
+        const key = statKeys[i];
+        const val = values[Math.min(i, values.length - 1)];
+        stats[key] = (stats[key] || 0) - val;
+      }
+    } else if (effect.type === 'set_flag') {
+      stats[effect.flag] = effect.value;
+    }
+  }
+}
+
+/**
+ * Aggregate all stats for a build profile.
+ * Phase 0+1: weapon + mods only. Armor/sets deferred.
+ *
+ * @param {object} build - Build profile (see §2.6)
+ * @returns {object} Flat stats object
+ */
+function aggregateStats(build) {
+  const weapon = WEAPON_DB[build.weapon.id];
+  if (!weapon) throw new Error(`Unknown weapon: ${build.weapon.id}`);
+
+  // 1. Weapon base stats (scaled)
+  const stats = scaleWeaponStats(
+    weapon.base_stats,
+    build.weapon.star,
+    build.weapon.level,
+    build.weapon.calibration
+  );
+
+  // Initialize stats that mods may contribute to but weapon doesn't have
+  stats.weapon_damage_percent = stats.weapon_damage_percent || 0;
+  stats.attack_percent = stats.attack_percent || 0;
+  stats.status_damage_percent = stats.status_damage_percent || 0;
+  stats.vulnerability_percent = stats.vulnerability_percent || 0;
+  stats.damage_bonus_normal = stats.damage_bonus_normal || 0;
+  stats.damage_bonus_elite = stats.damage_bonus_elite || 0;
+  stats.damage_bonus_boss = stats.damage_bonus_boss || 0;
+  stats.fire_rate_percent = stats.fire_rate_percent || 0;
+  stats.magazine_capacity_percent = stats.magazine_capacity_percent || 0;
+  stats.reload_speed_percent = stats.reload_speed_percent || 0;
+
+  // 2. Armor stats — skipped for Phase 0+1 (contributes HP/Psi for elemental pipeline)
+
+  // 3. Mod effects (static only)
+  if (build.mods) {
+    for (const slotKey of Object.keys(build.mods)) {
+      const modId = build.mods[slotKey];
+      if (modId && MOD_DB[modId]) {
+        applyModEffects(stats, MOD_DB[modId]);
+      }
+    }
+  }
+
+  // 4. Gear set bonuses — skipped for Phase 0+1
+
+  // 5. Conditional effects — skipped for Phase 0+1
+
+  return stats;
+}
+
+
+// ============================================================================
+// SECTION 5: PHYSICAL DAMAGE ENGINE
+// From phase-0-1-data-engine.md §3.2–§3.5
+// ============================================================================
+
+/**
+ * Compute physical damage per projectile.
+ * 5-bucket multiplicative model.
+ *
+ * @param {object} stats - Aggregated stats
+ * @param {boolean} isCrit - Whether this is a crit hit
+ * @param {boolean} isWeakspot - Whether this hits a weakspot
+ * @param {string} enemyType - 'normal', 'elite', or 'boss'
+ * @returns {number} Damage per projectile
+ */
+function physicalDamagePerProjectile(stats, isCrit, isWeakspot, enemyType) {
+  const base = stats.damage_per_projectile;
+
+  // Bucket A: Weapon DMG + Attack + Status DMG
+  const bucketA = 1 + ((stats.weapon_damage_percent || 0)
+                      + (stats.attack_percent || 0)
+                      + (stats.status_damage_percent || 0)) / 100;
+
+  // Bucket B: Enemy Type
+  const enemyBonusKey = `damage_bonus_${enemyType || 'normal'}`;
+  const bucketB = 1 + (stats[enemyBonusKey] || 0) / 100;
+
+  // Bucket C: Crit (conditional)
+  let bucketC = 1;
+  if (isCrit) {
+    bucketC = 1 + (stats.crit_damage_percent || 0) / 100;
+  }
+
+  // Bucket D: Weakspot (conditional)
+  let bucketD = 1;
+  if (isWeakspot) {
+    if (CRIT_WEAKSPOT_MULTIPLICATIVE) {
+      // lReDragol model: separate multiplicative bucket
+      bucketD = 1 + (stats.weakspot_damage_percent || 0) / 100;
+    } else {
+      // Gemini model: additive with crit in same bucket
+      // In this case, weakspot bonus is added to bucketC
+      if (isCrit) {
+        bucketC = 1 + ((stats.crit_damage_percent || 0) + (stats.weakspot_damage_percent || 0)) / 100;
+      } else {
+        bucketD = 1 + (stats.weakspot_damage_percent || 0) / 100;
+      }
+    }
+  }
+
+  // Bucket E: Vulnerability (target debuff)
+  const bucketE = 1 + (stats.vulnerability_percent || 0) / 100;
+
+  return base * bucketA * bucketB * bucketC * bucketD * bucketE;
+}
+
+/**
+ * Compute physical damage per shot (all projectiles).
+ */
+function physicalDamagePerShot(stats, isCrit, isWeakspot, enemyType) {
+  const perProjectile = physicalDamagePerProjectile(stats, isCrit, isWeakspot, enemyType);
+  return perProjectile * (stats.projectiles_per_shot || 1);
+}
+
+/**
+ * Compute expected (probability-weighted) damage per shot.
+ * 4-scenario model that works regardless of crit×ws model choice.
+ * From §3.4.
+ *
+ * @param {object} stats - Aggregated stats
+ * @param {object} conditions - Build conditions
+ * @returns {number} Expected damage per shot
+ */
+function expectedDamagePerShot(stats, conditions) {
+  const cc = Math.min((stats.crit_rate_percent || 0) / 100, 1); // crit chance capped at 100%
+  const wsRate = (conditions.weakspot_active && conditions.weakspot_hit_rate)
+    ? conditions.weakspot_hit_rate / 100
+    : 0;
+  const enemyType = conditions.enemy_type || 'normal';
+
+  // 4 scenarios weighted by joint probability
+  const dmg_noCrit_noWS = physicalDamagePerShot(stats, false, false, enemyType);
+  const dmg_crit_noWS   = physicalDamagePerShot(stats, true,  false, enemyType);
+  const dmg_noCrit_ws   = physicalDamagePerShot(stats, false, true,  enemyType);
+  const dmg_crit_ws     = physicalDamagePerShot(stats, true,  true,  enemyType);
+
+  return dmg_noCrit_noWS * (1 - cc) * (1 - wsRate)
+       + dmg_crit_noWS   * cc       * (1 - wsRate)
+       + dmg_noCrit_ws   * (1 - cc) * wsRate
+       + dmg_crit_ws     * cc       * wsRate;
+}
+
+/**
+ * Compute all DPS metrics for a build.
+ * Fixes two bugs from the reference implementation:
+ *   Bug #1: Sustained DPS uses (N-1) reloads, not N
+ *   Bug #2: Uses expectedDamagePerShot (probability-weighted), not raw crit
+ *
+ * @param {object} stats - Aggregated stats
+ * @param {object} conditions - Build conditions
+ * @param {number} [magazineCount=3] - Number of magazines for sustained DPS
+ * @returns {object} { expectedDPS, burstDPS, sustainedDPS, derived }
+ */
+function computeDPS(stats, conditions, magazineCount) {
+  const N = magazineCount || SUSTAINED_MAG_COUNT;
+
+  // Derived stats (after modifiers)
+  const effectiveFireRate = (stats.fire_rate || 0) * (1 + (stats.fire_rate_percent || 0) / 100);
+  const shotsPerSecond = effectiveFireRate / 60;
+
+  const effectiveMagSize = Math.round(
+    (stats.magazine_capacity || 1) * (1 + (stats.magazine_capacity_percent || 0) / 100)
+  );
+
+  const effectiveReloadTime = Math.max(
+    (stats.reload_time_seconds || 0) * (1 - (stats.reload_speed_percent || 0) / 100),
+    MIN_RELOAD_TIME
+  );
+
+  // Expected damage per shot (Bug #2 fix: use probability-weighted, not raw crit)
+  const expDmgPerShot = expectedDamagePerShot(stats, conditions);
+
+  // Expected DPS (infinite ammo, no reloads)
+  const expectedDPS = expDmgPerShot * shotsPerSecond;
+
+  // Burst DPS (one magazine, no reload)
+  const timeToEmpty = effectiveMagSize / shotsPerSecond;
+  const burstDPS = (expDmgPerShot * effectiveMagSize) / timeToEmpty;
+  // Note: burstDPS == expectedDPS when fire rate is constant (no first-half-mag modifiers)
+
+  // Sustained DPS (N magazines with reloads)
+  // Bug #1 fix: (N-1) reloads, not N — no reload after the last magazine
+  const totalDamage = expDmgPerShot * effectiveMagSize * N;
+  const totalTime = N * timeToEmpty + (N - 1) * effectiveReloadTime;
+  const sustainedDPS = totalDamage / totalTime;
+
+  return {
+    expectedDPS,
+    burstDPS,
+    sustainedDPS,
+    derived: {
+      effectiveFireRate,
+      shotsPerSecond,
+      effectiveMagSize,
+      effectiveReloadTime,
+      timeToEmpty,
+      expDmgPerShot,
+      totalDamage,
+      totalTime
+    }
+  };
+}
+
+
+// ============================================================================
+// SECTION 6: VALIDATION TEST SUITE
+// Tests run on page load, log pass/fail to console and page
+// ============================================================================
+
+const testResults = [];
+
+function assert(testName, actual, expected, tolerance) {
+  const tol = tolerance || 0.01;
+  const pass = Math.abs(actual - expected) < tol;
+  const result = { testName, actual, expected, pass };
+  testResults.push(result);
+  if (pass) {
+    console.log(`%c✓ PASS: ${testName}`, 'color: #4caf50', `| got ${actual.toFixed(4)}, expected ${expected.toFixed(4)}`);
+  } else {
+    console.log(`%c✗ FAIL: ${testName}`, 'color: #f44336; font-weight: bold', `| got ${actual.toFixed(4)}, expected ${expected.toFixed(4)}`);
+  }
+  return pass;
+}
+
+function runTests() {
+  console.log('=== Phase 0+1 Damage Engine Tests ===\n');
+
+  // ---- Test 1: Bare weapon baseline ----
+  // No mods, no crit, no weakspot, normal enemy
+  // Expected: just the base damage (buckets all = 1)
+  {
+    const stats = { damage_per_projectile: 100, projectiles_per_shot: 1 };
+    const dmg = physicalDamagePerProjectile(stats, false, false, 'normal');
+    assert('T1: Bare weapon baseline (no bonuses)', dmg, 100);
+  }
+
+  // ---- Test 2: Weapon scaling ----
+  // Star 6 (1.5x), Level 5 (1.2x), Cal 6 (1.12x)
+  // base 100 -> 100 * 1.5 * 1.2 * 1.12 = 201.6
+  {
+    const baseStats = { damage_per_projectile: 100, projectiles_per_shot: 1 };
+    const scaled = scaleWeaponStats(baseStats, 6, 5, 6);
+    assert('T2: Weapon scaling (star6, lv5, cal6)', scaled.damage_per_projectile, 201.6);
+  }
+
+  // ---- Test 3: Crit × Weakspot multiplicative ----
+  // base=100, crit_damage=50%, weakspot_damage=30%
+  // Multiplicative: 100 * 1.5 * 1.3 = 195
+  // Additive: 100 * (1 + 0.5 + 0.3) = 180
+  {
+    const stats = {
+      damage_per_projectile: 100,
+      projectiles_per_shot: 1,
+      crit_damage_percent: 50,
+      weakspot_damage_percent: 30
+    };
+    const dmg = physicalDamagePerProjectile(stats, true, true, 'normal');
+    const expectedMult = 100 * 1.5 * 1.3; // 195
+    assert('T3: Crit×Weakspot multiplicative model', dmg, expectedMult);
+  }
+
+  // ---- Test 4: 4-scenario expected value ----
+  // base=100, crit_rate=25%, crit_damage=50%, weakspot_hit_rate=40%, weakspot_damage=30%
+  // No crit, no ws: 100 * 0.75 * 0.60 = 45.00
+  // Crit, no ws:    100 * 1.5 * 0.25 * 0.60 = 22.50
+  // No crit, ws:    100 * 1.3 * 0.75 * 0.40 = 39.00
+  // Crit, ws:       100 * 1.5 * 1.3 * 0.25 * 0.40 = 19.50
+  // Total: 45 + 22.5 + 39 + 19.5 = 126.00
+  {
+    const stats = {
+      damage_per_projectile: 100,
+      projectiles_per_shot: 1,
+      crit_rate_percent: 25,
+      crit_damage_percent: 50,
+      weakspot_damage_percent: 30
+    };
+    const conditions = {
+      weakspot_active: true,
+      weakspot_hit_rate: 40,
+      enemy_type: 'normal'
+    };
+    const expected = expectedDamagePerShot(stats, conditions);
+    assert('T4: 4-scenario expected DPS weighting', expected, 126.00);
+  }
+
+  // ---- Test 5: Shotgun multi-projectile ----
+  // 6 pellets × 48 damage each = 288 per shot
+  {
+    const stats = {
+      damage_per_projectile: 48,
+      projectiles_per_shot: 6
+    };
+    const dmg = physicalDamagePerShot(stats, false, false, 'normal');
+    assert('T5: Shotgun multi-projectile (6 pellets)', dmg, 288);
+  }
+
+  // ---- Test 6: Sustained DPS N-1 reloads (Bug #1 fix) ----
+  // 600 RPM = 10 shots/sec, 30 round mag, 2s reload, N=3
+  // timeToEmpty = 30/10 = 3s
+  // totalTime = 3*3 + (3-1)*2 = 9 + 4 = 13s (NOT 9+6=15s)
+  // totalDamage = 100 * 30 * 3 = 9000
+  // sustainedDPS = 9000/13 ≈ 692.31
+  {
+    const stats = {
+      damage_per_projectile: 100,
+      projectiles_per_shot: 1,
+      fire_rate: 600,
+      magazine_capacity: 30,
+      reload_time_seconds: 2,
+      crit_rate_percent: 0,
+      weakspot_damage_percent: 0
+    };
+    const conditions = { weakspot_active: false, enemy_type: 'normal' };
+    const result = computeDPS(stats, conditions, 3);
+    assert('T6a: Sustained totalTime uses N-1 reloads', result.derived.totalTime, 13, 0.01);
+    assert('T6b: Sustained DPS = 9000/13', result.sustainedDPS, 9000 / 13, 0.1);
+  }
+
+  // ---- Test 7: Mod stat application ----
+  // Base crit: 6%, apply +8% crit rate mod → 14%
+  // Base crit dmg: 25%, apply +15% crit dmg mod → 40%
+  {
+    const build = {
+      weapon: { id: 'de50_jaws', star: 1, level: 1, calibration: 0 },
+      mods: { helmet: 'sharpshooter_instinct' }
+    };
+    const stats = aggregateStats(build);
+    assert('T7a: Mod crit rate applied (6+8=14)', stats.crit_rate_percent, 14, 0.01);
+    assert('T7b: Mod crit dmg applied (25+15=40)', stats.crit_damage_percent, 40, 0.01);
+  }
+
+  // ---- Test 8: Bucket A (weapon_damage + attack + status) ----
+  // base=100, weapon_dmg=20%, attack=12%, status=0%
+  // bucketA = 1 + (20+12+0)/100 = 1.32
+  // result = 100 * 1.32 = 132
+  {
+    const stats = {
+      damage_per_projectile: 100,
+      projectiles_per_shot: 1,
+      weapon_damage_percent: 20,
+      attack_percent: 12,
+      status_damage_percent: 0
+    };
+    const dmg = physicalDamagePerProjectile(stats, false, false, 'normal');
+    assert('T8: Bucket A (weapon+attack+status)', dmg, 132);
+  }
+
+  // ---- Test 9: Enemy type bucket ----
+  // base=100, damage_bonus_boss=25%
+  // bucketB = 1.25, result = 125
+  {
+    const stats = {
+      damage_per_projectile: 100,
+      projectiles_per_shot: 1,
+      damage_bonus_boss: 25
+    };
+    const dmg = physicalDamagePerProjectile(stats, false, false, 'boss');
+    assert('T9: Bucket B (boss enemy type)', dmg, 125);
+  }
+
+  // ---- Test 10: Vulnerability bucket ----
+  // base=100, vulnerability=15%
+  // bucketE = 1.15, result = 115
+  {
+    const stats = {
+      damage_per_projectile: 100,
+      projectiles_per_shot: 1,
+      vulnerability_percent: 15
+    };
+    const dmg = physicalDamagePerProjectile(stats, false, false, 'normal');
+    assert('T10: Bucket E (vulnerability)', dmg, 115);
+  }
+
+  return testResults;
+}
+
+
+// ============================================================================
+// SECTION 7: MAIN — Run tests + compute DPS for all weapons
+// ============================================================================
+
+function formatNumber(n) {
+  if (n >= 1000) return n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return n.toFixed(2);
+}
+
+function main() {
+  const output = document.getElementById('output');
+  let html = '';
+
+  // --- Run tests ---
+  html += '<h2>Validation Tests</h2><pre>';
+  const results = runTests();
+  const passed = results.filter(r => r.pass).length;
+  const total = results.length;
+
+  for (const r of results) {
+    const cls = r.pass ? 'pass' : 'fail';
+    const symbol = r.pass ? '✓' : '✗';
+    html += `<span class="${cls}">${symbol} ${r.testName}</span>\n`;
+    html += `    got: ${r.actual.toFixed(4)}, expected: ${r.expected.toFixed(4)}\n`;
+  }
+  html += `\n<strong>${passed}/${total} tests passed</strong>`;
+  if (passed === total) {
+    html += ' <span class="pass">— ALL CLEAR</span>';
+  } else {
+    html += ` <span class="fail">— ${total - passed} FAILED</span>`;
+  }
+  html += '</pre>';
+
+  // --- DPS for all weapons ---
+  html += '<h2>DPS Results — All Weapons @ Star 6 / Level 5 / Cal 6</h2>';
+
+  const conditions = {
+    weakspot_active: true,
+    weakspot_hit_rate: 30,  // 30% of shots hit weakspot
+    enemy_type: 'normal'
+  };
+
+  html += '<div class="section">';
+  html += `<p>Conditions: weakspot active, ${conditions.weakspot_hit_rate}% hit rate, vs ${conditions.enemy_type}</p>`;
+  html += `<p>Crit×Weakspot model: <strong>${CRIT_WEAKSPOT_MULTIPLICATIVE ? 'Multiplicative (lReDragol)' : 'Additive (Gemini)'}</strong></p>`;
+  html += `<p>Sustained: ${SUSTAINED_MAG_COUNT} magazines</p>`;
+  html += '</div>';
+
+  html += '<table>';
+  html += '<tr><th>Weapon</th><th>Type</th><th>Keyword</th><th>E[Dmg/Shot]</th><th>Expected DPS</th><th>Burst DPS</th><th>Sustained DPS</th><th>Eff. Fire Rate</th><th>Eff. Mag</th><th>Reload</th></tr>';
+
+  for (const weaponId of Object.keys(WEAPON_DB)) {
+    const build = {
+      weapon: { id: weaponId, star: 6, level: 5, calibration: 6 },
+      mods: {},
+      conditions: conditions
+    };
+
+    const stats = aggregateStats(build);
+    const dps = computeDPS(stats, conditions);
+
+    html += '<tr>';
+    html += `<td>${WEAPON_DB[weaponId].name}</td>`;
+    html += `<td>${WEAPON_DB[weaponId].type}</td>`;
+    html += `<td>${WEAPON_DB[weaponId].keyword}</td>`;
+    html += `<td>${formatNumber(dps.derived.expDmgPerShot)}</td>`;
+    html += `<td>${formatNumber(dps.expectedDPS)}</td>`;
+    html += `<td>${formatNumber(dps.burstDPS)}</td>`;
+    html += `<td>${formatNumber(dps.sustainedDPS)}</td>`;
+    html += `<td>${formatNumber(dps.derived.effectiveFireRate)} RPM</td>`;
+    html += `<td>${dps.derived.effectiveMagSize}</td>`;
+    html += `<td>${dps.derived.effectiveReloadTime.toFixed(2)}s</td>`;
+    html += '</tr>';
+
+    console.log(`\n${WEAPON_DB[weaponId].name} (${WEAPON_DB[weaponId].keyword}):`);
+    console.log(`  E[Dmg/Shot]: ${dps.derived.expDmgPerShot.toFixed(2)}`);
+    console.log(`  Expected DPS: ${dps.expectedDPS.toFixed(2)}`);
+    console.log(`  Burst DPS: ${dps.burstDPS.toFixed(2)}`);
+    console.log(`  Sustained DPS: ${dps.sustainedDPS.toFixed(2)}`);
+  }
+
+  html += '</table>';
+
+  // --- DPS with mods example ---
+  html += '<h2>Mod Impact Example: DE.50 Jaws + Sharpshooter + Most Wanted</h2>';
+
+  const buildNoMods = {
+    weapon: { id: 'de50_jaws', star: 6, level: 5, calibration: 6 },
+    mods: {},
+    conditions: conditions
+  };
+  const buildWithMods = {
+    weapon: { id: 'de50_jaws', star: 6, level: 5, calibration: 6 },
+    mods: { helmet: 'sharpshooter_instinct', gloves: 'most_wanted' },
+    conditions: conditions
+  };
+
+  const statsNoMods = aggregateStats(buildNoMods);
+  const dpsNoMods = computeDPS(statsNoMods, conditions);
+  const statsWithMods = aggregateStats(buildWithMods);
+  const dpsWithMods = computeDPS(statsWithMods, conditions);
+
+  html += '<table>';
+  html += '<tr><th>Metric</th><th>No Mods</th><th>With Mods</th><th>Delta</th></tr>';
+
+  const metrics = [
+    ['Crit Rate %', statsNoMods.crit_rate_percent, statsWithMods.crit_rate_percent],
+    ['Crit DMG %', statsNoMods.crit_damage_percent, statsWithMods.crit_damage_percent],
+    ['Attack %', statsNoMods.attack_percent, statsWithMods.attack_percent],
+    ['E[Dmg/Shot]', dpsNoMods.derived.expDmgPerShot, dpsWithMods.derived.expDmgPerShot],
+    ['Expected DPS', dpsNoMods.expectedDPS, dpsWithMods.expectedDPS],
+    ['Sustained DPS', dpsNoMods.sustainedDPS, dpsWithMods.sustainedDPS],
+  ];
+
+  for (const [name, noMod, withMod] of metrics) {
+    const delta = withMod - noMod;
+    const pct = noMod > 0 ? ((delta / noMod) * 100).toFixed(1) : 'N/A';
+    html += `<tr><td>${name}</td><td>${formatNumber(noMod)}</td><td>${formatNumber(withMod)}</td><td>+${formatNumber(delta)} (${pct}%)</td></tr>`;
+  }
+
+  html += '</table>';
+
+  // --- Bug fix demonstration ---
+  html += '<h2>Bug Fix Demonstration</h2>';
+  html += '<pre>';
+
+  // Bug #1: N-1 reloads
+  const bugStats = {
+    damage_per_projectile: 100, projectiles_per_shot: 1,
+    fire_rate: 600, magazine_capacity: 30, reload_time_seconds: 2,
+    crit_rate_percent: 0
+  };
+  const bugConditions = { weakspot_active: false, enemy_type: 'normal' };
+  const correctDPS = computeDPS(bugStats, bugConditions, 3);
+
+  // Simulate the buggy version (N reloads instead of N-1)
+  const buggyTotalTime = 3 * (30 / 10) + 3 * 2; // N * reload = 15s
+  const buggyDPS = 9000 / buggyTotalTime;
+
+  html += '<span class="pass">Bug #1: Sustained DPS reload count</span>\n';
+  html += `  Correct (N-1 reloads): totalTime = ${correctDPS.derived.totalTime.toFixed(1)}s → DPS = ${correctDPS.sustainedDPS.toFixed(2)}\n`;
+  html += `  Buggy   (N reloads):   totalTime = ${buggyTotalTime.toFixed(1)}s → DPS = ${buggyDPS.toFixed(2)}\n`;
+  html += `  Difference: ${((correctDPS.sustainedDPS - buggyDPS) / buggyDPS * 100).toFixed(1)}% higher DPS with correct formula\n\n`;
+
+  // Bug #2: Expected vs raw crit
+  const bug2Stats = {
+    damage_per_projectile: 100, projectiles_per_shot: 1,
+    fire_rate: 600, magazine_capacity: 30, reload_time_seconds: 2,
+    crit_rate_percent: 25, crit_damage_percent: 50
+  };
+  const correctExpDmg = expectedDamagePerShot(bug2Stats, bugConditions);
+  const rawCritDmg = physicalDamagePerShot(bug2Stats, true, false, 'normal'); // always-crit
+
+  html += '<span class="pass">Bug #2: Expected vs raw crit damage per shot</span>\n';
+  html += `  Correct (expected): E[dmg/shot] = ${correctExpDmg.toFixed(2)} (weighted by ${bug2Stats.crit_rate_percent}% crit chance)\n`;
+  html += `  Buggy   (raw crit): dmg/shot = ${rawCritDmg.toFixed(2)} (assumes 100% crit)\n`;
+  html += `  Overstatement: ${((rawCritDmg - correctExpDmg) / correctExpDmg * 100).toFixed(1)}% too high\n`;
+
+  html += '</pre>';
+
+  output.innerHTML = html;
+}
+
+main();
+</script>
+</body>
+</html>
