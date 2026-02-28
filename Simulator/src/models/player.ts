@@ -10,6 +10,7 @@ export class PlayerStats {
         this.stats.set(StatType.DamagePerProjectile, new GenericStat(StatType.DamagePerProjectile, 0));
         this.stats.set(StatType.FireRate, new GenericStat(StatType.FireRate, 0));
         this.stats.set(StatType.MagazineCapacity, new MagazineCapacityStat(0));
+        this.stats.set(StatType.AttackPercent, new GenericStat(StatType.AttackPercent, 0));
         this.stats.set(StatType.CritRatePercent, new CritRateStat(0));
         this.stats.set(StatType.CritDamagePercent, new GenericStat(StatType.CritDamagePercent, 0));
         this.stats.set(StatType.WeakspotDamagePercent, new GenericStat(StatType.WeakspotDamagePercent, 0));

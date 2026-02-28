@@ -4,17 +4,24 @@ import { EncounterConditions, DamageProfile } from '../types/common';
 import { StatType, FlagType } from '../types/enums';
 
 export class PhysicalDamagePipeline extends BaseDamagePipeline {
+    private getAttackMultiplier(player: Player): number {
+        return 1 + ((player.stats.get(StatType.AttackPercent)?.value ?? 0) / 100);
+    }
+
     private getWeaponDamageMultiplier(player: Player): number {
         return 1 + ((player.stats.get(StatType.WeaponDamagePercent)?.value ?? 0) / 100);
     }
 
     calculate(player: Player, conditions: EncounterConditions): DamageProfile {
-        const atk = player.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
-        const weaponDmg = this.getWeaponDamageMultiplier(player);
+        const weaponBase = player.loadout.weapon?.stats.damagePerProjectile.value ?? 
+                          player.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
+        
+        const attackMult = this.getAttackMultiplier(player);
+        const weaponDmgMult = this.getWeaponDamageMultiplier(player);
         const enemyDmg = this.getEnemyMultiplier(player, conditions);
         const vulnerabilityDmg = this.getVulnerabilityMultiplier(player, conditions);
 
-        const baseDamage = atk * weaponDmg * enemyDmg * vulnerabilityDmg;
+        const baseDamage = weaponBase * attackMult * weaponDmgMult * enemyDmg * vulnerabilityDmg;
 
         return this.calculateDamageProfile(
             baseDamage,

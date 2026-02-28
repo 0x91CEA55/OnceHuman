@@ -18,6 +18,7 @@ export enum StatType {
     FireRate = 'fire_rate',
     CritRatePercent = 'crit_rate_percent',
     MagazineCapacity = 'magazine_capacity',
+    AttackPercent = 'attack_percent',
     KeywordCritRatePercent = 'keyword_crit_rate_percent',
     KeywordCritDamagePercent = 'keyword_crit_damage_percent',
     KeywordTriggerChancePercent = 'keyword_trigger_chance_percent',
