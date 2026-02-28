@@ -1,0 +1,18 @@
+{
+    "project": {
+        "root": ".",
+        "includeAllFiles": true
+    },
+    "tools": {
+        "allowed": [
+            "google_search",
+            "web_fetch",
+            "read_file",
+            "search_text"
+        ],
+        "core": [
+            "run_shell_command(gh)",
+            "run_shell_command(curl -X GET)"
+        ]
+    }
+}

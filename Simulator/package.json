@@ -1,0 +1,16 @@
+{
+    "name": "once-human-simulator",
+    "version": "0.1.0",
+    "description": "DPS Simulator for Once Human",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "test": "jest"
+    },
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/node": "^20.0.0"
+    }
+}
