@@ -82,6 +82,7 @@ export class DamageEngine {
                 
                 for (const effect of allEffects) {
                     const legacyEvent: LegacyCombatEvent = {
+                        type: trigger,
                         shotNumber: 0,
                         damageProfile: { expected: event.damage || 0 } as any 
                     };

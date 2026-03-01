@@ -5,7 +5,7 @@ import { CombatEvent } from '../types/common';
 export abstract class Condition {
     abstract evaluate(ctx: CombatContext, eventData?: CombatEvent): boolean;
 }
-//... existing conditions
+
 export class EnemyTypeCondition extends Condition {
     constructor(private readonly allowedTypes: EnemyType[]) { super(); }
     evaluate(ctx: CombatContext): boolean {
@@ -23,9 +23,46 @@ export class DistanceCondition extends Condition {
 export class ChanceCondition extends Condition {
     constructor(private readonly probability: number) { super(); }
     evaluate(_ctx: CombatContext, eventData?: any): boolean {
-        // Safe access to procCoefficient on new event format, defaulting to 1
         const coeff = eventData?.intent?.procCoefficient ?? 1.0;
         return Math.random() < (this.probability * coeff);
+    }
+}
+
+/**
+ * Specifically for weapons like Jaws/Last Valor that count hits toward a proc.
+ * Stores counter in the CombatState to ensure persistence across simulation steps.
+ */
+export class HitCounterCondition extends Condition {
+    constructor(
+        private readonly targetHits: number,
+        private readonly critsCountAsTwo: boolean = false
+    ) {
+        super();
+    }
+
+    evaluate(ctx: CombatContext, eventData?: CombatEvent): boolean {
+        const key = `hit-counter-${this.targetHits}`;
+        const increment = (this.critsCountAsTwo && eventData?.type === EventTrigger.OnCrit) ? 2 : 1;
+        
+        ctx.state.incrementCounter(key, increment);
+        
+        if (ctx.state.getCounter(key) >= this.targetHits) {
+            ctx.state.setCounter(key, 0); // Reset
+            return true;
+        }
+        return false;
+    }
+}
+
+export class TargetAtMaxStatusStacksCondition extends Condition {
+    constructor(private readonly statusId: string) { super(); }
+    evaluate(ctx: CombatContext, eventData?: any): boolean {
+        const target = eventData?.target || ctx.statusManager.owner;
+        const status = target.statusManager.getActiveDoTs().find((d: any) => d.definition.id === this.statusId) 
+                    || target.statusManager.getActiveBuffs().find((b: any) => b.definition.id === this.statusId);
+        
+        if (!status) return false;
+        return status.currentStacks >= status.definition.maxStacks;
     }
 }
 
@@ -46,6 +83,11 @@ export class OnCritTrigger extends BaseTrigger {
 
 export class OnKillTrigger extends BaseTrigger {
     constructor() { super(EventTrigger.OnKill); }
+    shouldFire(): boolean { return true; }
+}
+
+export class OnReloadTrigger extends BaseTrigger {
+    constructor() { super(EventTrigger.OnReload); }
     shouldFire(): boolean { return true; }
 }
 
@@ -70,6 +112,7 @@ export class TriggeredEffect {
     ) {}
 
     evaluate(ctx: CombatContext, eventData?: CombatEvent): boolean {
+        if (this.trigger.type !== eventData?.type) return false;
         if (!this.trigger.shouldFire(eventData)) return false;
         
         for (const condition of this.conditions) {

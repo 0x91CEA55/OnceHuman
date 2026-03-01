@@ -1,8 +1,9 @@
 import { StatType, FlagType, WeaponSlot, ArmorSlot, ModKey } from '../types/enums';
-import { ModData, Mod, AggregationContext } from '../models/equipment';
+import { ModData, Mod } from '../models/equipment';
+import { AggregationContext } from '../types/common';
 import { Substat, SubstatTier } from '../models/substat';
-import { IncreaseStatEffect, SetFlagEffect, BuffEffect } from '../models/effect';
-import { TriggeredEffect, OnHitTrigger } from '../models/trigger';
+import { IncreaseStatEffect, SetFlagEffect, BuffEffect, ConditionalEffect } from '../models/effect';
+import { TriggeredEffect, OnHitTrigger, OnReloadTrigger } from '../models/trigger';
 
 /**
  * Momentum Up: Fire Rate +10% for first 50% of mag, Weapon DMG +30% for second half.
@@ -56,6 +57,77 @@ export const MOD_DATA: Record<ModKey, ModData> = {
         ArmorSlot.Helmet,
         'Fire Rate +10% for first 50% of mag, Weapon DMG +30% for second half.',
         [],
+        []
+    ),
+    [ModKey.WorkOfProficiency]: new ModData(
+        ModKey.WorkOfProficiency,
+        'Work Of Proficiency',
+        ArmorSlot.Helmet,
+        'Reloading empty magazine: Reload Speed +10% and Elemental DMG +20% for 5s.',
+        [],
+        [
+            // Simplified: Always triggers on reload for now
+            new TriggeredEffect(
+                new OnReloadTrigger(),
+                [
+                    new BuffEffect(
+                        'buff-proficiency',
+                        'Proficiency',
+                        5,
+                        1,
+                        [
+                            new IncreaseStatEffect(StatType.ReloadSpeedPercent, 10),
+                            new IncreaseStatEffect(StatType.ElementalDamagePercent, 20)
+                        ]
+                    )
+                ]
+            )
+        ]
+    ),
+    [ModKey.FirstMoveAdvantage]: new ModData(
+        ModKey.FirstMoveAdvantage,
+        'First-Move Advantage',
+        ArmorSlot.Helmet,
+        'For 2s after reloading: Crit Rate +10% and Crit DMG +20%.',
+        [],
+        [
+            new TriggeredEffect(
+                new OnReloadTrigger(),
+                [
+                    new BuffEffect(
+                        'buff-first-move',
+                        'First-Move',
+                        2,
+                        1,
+                        [
+                            new IncreaseStatEffect(StatType.CritRatePercent, 10),
+                            new IncreaseStatEffect(StatType.CritDamagePercent, 20)
+                        ]
+                    )
+                ]
+            )
+        ]
+    ),
+    [ModKey.MagExpansion]: new ModData(
+        ModKey.MagExpansion,
+        'Mag Expansion',
+        ArmorSlot.Helmet,
+        'Reloading empty magazine increases capacity by 30%.',
+        [new IncreaseStatEffect(StatType.MagazineCapacity, 30)], // Simplified to static for now
+        []
+    ),
+    [ModKey.ElementalHavoc]: new ModData(
+        ModKey.ElementalHavoc,
+        'Elemental Havoc',
+        ArmorSlot.Helmet,
+        'Elemental DMG +10%. When HP above 90%, additional +10% Elemental DMG.',
+        [
+            new IncreaseStatEffect(StatType.ElementalDamagePercent, 10),
+            new ConditionalEffect(
+                (ctx: AggregationContext) => ctx.conditions.playerHpPercent >= 90,
+                [new IncreaseStatEffect(StatType.ElementalDamagePercent, 10)]
+            )
+        ],
         []
     ),
     [ModKey.PreciseStrike]: new ModData(

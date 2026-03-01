@@ -1,21 +1,25 @@
 import React from 'react';
 import { EncounterConditions } from '../types/common';
-import { EnemyType } from '../types/enums';
+import { EnemyType, AmmunitionType } from '../types/enums';
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Target, Ruler, Radio, ShieldAlert } from 'lucide-react';
+import { Target, Radio, ShieldAlert, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EncounterConditionsPanelProps {
     conditions: EncounterConditions;
     onChange: (conditions: EncounterConditions) => void;
+    selectedAmmunition: AmmunitionType;
+    onAmmunitionChange: (ammo: AmmunitionType) => void;
 }
 
 export const EncounterConditionsPanel: React.FC<EncounterConditionsPanelProps> = ({
     conditions,
-    onChange
+    onChange,
+    selectedAmmunition,
+    onAmmunitionChange
 }) => {
     const handleUpdate = (updates: Partial<EncounterConditions>) => {
         onChange({ ...conditions, ...updates });
@@ -69,7 +73,6 @@ export const EncounterConditionsPanel: React.FC<EncounterConditionsPanelProps> =
 
             {/* Row 2: Weakspot & Distance */}
             <div className="grid grid-cols-2 gap-4 pt-1">
-                {/* Weakspot Hit Rate */}
                 <div className="space-y-2">
                     <div className="flex justify-between items-center">
                         <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
@@ -87,11 +90,10 @@ export const EncounterConditionsPanel: React.FC<EncounterConditionsPanelProps> =
                     />
                 </div>
 
-                {/* Target Distance */}
                 <div className="space-y-2">
                     <div className="flex justify-between items-center">
                         <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
-                            <Ruler className="w-2 h-2 text-primary" /> Distance
+                            <Activity className="w-2 h-2 text-primary" /> Distance
                         </Label>
                         <span className="text-[9px] font-mono font-black text-foreground">{conditions.targetDistanceMeters}m</span>
                     </div>
@@ -104,6 +106,28 @@ export const EncounterConditionsPanel: React.FC<EncounterConditionsPanelProps> =
                         className="py-0.5"
                     />
                 </div>
+            </div>
+
+            {/* Row 3: Ammunition Selection (The PSI Source) */}
+            <div className="space-y-1.5 pt-1">
+                <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
+                    <Radio className="w-2 h-2 text-blue-400" /> Ordnance_Load
+                </Label>
+                <Select 
+                    value={selectedAmmunition} 
+                    onValueChange={(val) => onAmmunitionChange(val as AmmunitionType)}
+                >
+                    <SelectTrigger className="h-6 text-[9px] bg-black/40 border-white/5 font-black uppercase hover:border-blue-400/30 transition-all rounded-none px-2">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black border-primary/20">
+                        {Object.values(AmmunitionType).map(type => (
+                            <SelectItem key={type} value={type} className="text-[9px] font-bold uppercase">
+                                {type.replace(/_/g, ' ')}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
             
             {/* Metadata Footer Line */}

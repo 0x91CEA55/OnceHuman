@@ -46,7 +46,7 @@ export class StatusManager {
         // 2. Tick DoTs
         for (let i = this.activeDoTs.length - 1; i >= 0; i--) {
             const dot = this.activeDoTs[i];
-            const isTickTime = dot.tickWithDamage(ctx.currentTime, dt);
+            const isTickTime = dot.tickWithDamage(ctx.currentTime, dt, ctx);
             
             if (isTickTime) {
                 // Delegation: Let the DoT instance resolve its own damage math

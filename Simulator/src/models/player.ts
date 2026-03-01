@@ -1,4 +1,4 @@
-import { StatType, FlagType } from '../types/enums';
+import { StatType, FlagType, AmmunitionType } from '../types/enums';
 import { Stat, GenericStat, MagazineCapacityStat, CritRateStat } from '../models/stats';
 import { Loadout } from '../models/equipment';
 import { BaseEffect } from '../models/effect';
@@ -30,8 +30,26 @@ export class PlayerStats {
         this.stats.set(StatType.DamageBonusNormal, new GenericStat(StatType.DamageBonusNormal, 0));
         this.stats.set(StatType.DamageBonusElite, new GenericStat(StatType.DamageBonusElite, 0));
         this.stats.set(StatType.DamageBonusBoss, new GenericStat(StatType.DamageBonusBoss, 0));
-        this.stats.set(StatType.PsiIntensity, new GenericStat(StatType.PsiIntensity, 0));
+        this.stats.set(StatType.PsiIntensity, new GenericStat(StatType.PsiIntensity, 125)); // Level 50 Character Baseline
         this.stats.set(StatType.VulnerabilityPercent, new GenericStat(StatType.VulnerabilityPercent, 0));
+
+        // Keyword Specific - FACTOR Buckets
+        this.stats.set(StatType.BurnDamageFactor, new GenericStat(StatType.BurnDamageFactor, 0));
+        this.stats.set(StatType.FrostVortexDamageFactor, new GenericStat(StatType.FrostVortexDamageFactor, 0));
+        this.stats.set(StatType.PowerSurgeDamageFactor, new GenericStat(StatType.PowerSurgeDamageFactor, 0));
+        this.stats.set(StatType.ShrapnelDamageFactor, new GenericStat(StatType.ShrapnelDamageFactor, 0));
+        this.stats.set(StatType.UnstableBomberDamageFactor, new GenericStat(StatType.UnstableBomberDamageFactor, 0));
+        this.stats.set(StatType.BounceDamageFactor, new GenericStat(StatType.BounceDamageFactor, 0));
+
+        // Keyword Specific - FINAL Buckets
+        this.stats.set(StatType.BurnFinalDamage, new GenericStat(StatType.BurnFinalDamage, 0));
+        this.stats.set(StatType.FrostVortexFinalDamage, new GenericStat(StatType.FrostVortexFinalDamage, 0));
+        this.stats.set(StatType.PowerSurgeFinalDamage, new GenericStat(StatType.PowerSurgeFinalDamage, 0));
+        this.stats.set(StatType.ShrapnelFinalDamage, new GenericStat(StatType.ShrapnelFinalDamage, 0));
+        this.stats.set(StatType.UnstableBomberFinalDamage, new GenericStat(StatType.UnstableBomberFinalDamage, 0));
+        this.stats.set(StatType.BounceFinalDamage, new GenericStat(StatType.BounceFinalDamage, 0));
+
+        // Legacy / Generic Percent Stats
         this.stats.set(StatType.BurnDamagePercent, new GenericStat(StatType.BurnDamagePercent, 0));
         this.stats.set(StatType.FrostVortexDamagePercent, new GenericStat(StatType.FrostVortexDamagePercent, 0));
         this.stats.set(StatType.PowerSurgeDamagePercent, new GenericStat(StatType.PowerSurgeDamagePercent, 0));
@@ -39,6 +57,7 @@ export class PlayerStats {
         this.stats.set(StatType.UnstableBomberDamagePercent, new GenericStat(StatType.UnstableBomberDamagePercent, 0));
         this.stats.set(StatType.BounceDamagePercent, new GenericStat(StatType.BounceDamagePercent, 0));
         this.stats.set(StatType.BullsEyeDamagePercent, new GenericStat(StatType.BullsEyeDamagePercent, 0));
+
         this.stats.set(StatType.MaxBurnStacks, new GenericStat(StatType.MaxBurnStacks, 5));
         this.stats.set(StatType.BurnDurationPercent, new GenericStat(StatType.BurnDurationPercent, 100));
     }
@@ -80,6 +99,7 @@ export class PlayerStats {
 
 export class Player extends Entity {
     public flags: Map<FlagType, boolean> = new Map();
+    public selectedAmmunition: AmmunitionType = AmmunitionType.Copper;
 
     constructor(
         public loadout: Loadout,

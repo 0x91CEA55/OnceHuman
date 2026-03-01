@@ -2,18 +2,24 @@ import { DamageIntent } from '../models/damage';
 import { Player } from '../models/player';
 import { DamageTrait, StatType } from '../types/enums';
 
-const TRAIT_MULTIPLIER_MAP: Partial<Record<DamageTrait, StatType>> = {
-    [DamageTrait.Status]: StatType.StatusDamagePercent,
-    [DamageTrait.Elemental]: StatType.ElementalDamagePercent,
-    [DamageTrait.Weapon]: StatType.WeaponDamagePercent,
-    [DamageTrait.Attack]: StatType.AttackPercent,
-    [DamageTrait.Burn]: StatType.BurnDamagePercent,
-    [DamageTrait.FrostVortex]: StatType.FrostVortexDamagePercent,
-    [DamageTrait.PowerSurge]: StatType.PowerSurgeDamagePercent,
-    [DamageTrait.Shrapnel]: StatType.ShrapnelDamagePercent,
-    [DamageTrait.UnstableBomber]: StatType.UnstableBomberDamagePercent,
-    [DamageTrait.Bounce]: StatType.BounceDamagePercent,
-    [DamageTrait.BullsEye]: StatType.BullsEyeDamagePercent,
+// Mapping Trait -> { FactorStat, FinalStat }
+interface TraitStatMapping {
+    factor: StatType;
+    final?: StatType;
+}
+
+const TRAIT_MULTIPLIER_MAP: Partial<Record<DamageTrait, TraitStatMapping>> = {
+    [DamageTrait.Status]: { factor: StatType.StatusDamagePercent },
+    [DamageTrait.Elemental]: { factor: StatType.ElementalDamagePercent },
+    [DamageTrait.Weapon]: { factor: StatType.WeaponDamagePercent },
+    [DamageTrait.Attack]: { factor: StatType.AttackPercent },
+    
+    [DamageTrait.Burn]: { factor: StatType.BurnDamageFactor, final: StatType.BurnFinalDamage },
+    [DamageTrait.FrostVortex]: { factor: StatType.FrostVortexDamageFactor, final: StatType.FrostVortexFinalDamage },
+    [DamageTrait.PowerSurge]: { factor: StatType.PowerSurgeDamageFactor, final: StatType.PowerSurgeFinalDamage },
+    [DamageTrait.Shrapnel]: { factor: StatType.ShrapnelDamageFactor, final: StatType.ShrapnelFinalDamage },
+    [DamageTrait.UnstableBomber]: { factor: StatType.UnstableBomberDamageFactor, final: StatType.UnstableBomberFinalDamage },
+    [DamageTrait.Bounce]: { factor: StatType.BounceDamageFactor, final: StatType.BounceFinalDamage },
 };
 
 export class DamageProcessor {
@@ -24,24 +30,23 @@ export class DamageProcessor {
         const target = intent.target;
 
         if (source instanceof Player) {
-            // 1. Iterate through Traits and apply corresponding Stat Multipliers to Buckets
+            // 1. Resolve Multipliers via Traits
             for (const trait of intent.getTraits()) {
-                const statType = TRAIT_MULTIPLIER_MAP[trait];
-                if (statType) {
-                    const statValue = source.stats.get(statType)?.value ?? 0;
-                    const multiplier = 1 + (statValue / 100);
-                    
-                    // Determine bucket name
-                    let bucket = 'generic';
-                    if (trait === DamageTrait.Status) bucket = 'status';
-                    else if (trait === DamageTrait.Elemental) bucket = 'elemental';
-                    else if (trait === DamageTrait.Weapon || trait === DamageTrait.Attack) bucket = 'attack';
-                    else if (trait === DamageTrait.Burn || trait === DamageTrait.FrostVortex || 
-                             trait === DamageTrait.PowerSurge || trait === DamageTrait.Shrapnel ||
-                             trait === DamageTrait.UnstableBomber || trait === DamageTrait.Bounce ||
-                             trait === DamageTrait.BullsEye) bucket = 'keyword';
+                const mapping = TRAIT_MULTIPLIER_MAP[trait];
+                if (mapping) {
+                    // Factor Bucket (Additive within, Multiplicative across)
+                    const factorVal = source.stats.get(mapping.factor)?.value ?? 0;
+                    if (factorVal !== 0) {
+                        intent.addMultiplier(1 + (factorVal / 100), `${trait}_factor`);
+                    }
 
-                    intent.addMultiplier(multiplier, bucket);
+                    // Final Bucket (Multiplicative with Factor)
+                    if (mapping.final) {
+                        const finalVal = source.stats.get(mapping.final)?.value ?? 0;
+                        if (finalVal !== 0) {
+                            intent.addMultiplier(1 + (finalVal / 100), `${trait}_final`);
+                        }
+                    }
                 }
             }
 

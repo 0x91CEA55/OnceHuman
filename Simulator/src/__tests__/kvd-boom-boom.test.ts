@@ -6,7 +6,6 @@ import { createWeapon } from '../data/weapons';
 import { createModInstance, DEFAULT_SUBSTATS } from '../data/mods';
 import { DamageEngine } from '../engine/damage-engine';
 import { StatAggregator } from '../engine/stat-aggregator';
-import { Burn } from '../pipelines/keyword';
 
 describe('KVD Boom Boom & Burn Synergy', () => {
     let player: Player;

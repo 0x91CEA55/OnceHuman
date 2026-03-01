@@ -1,8 +1,8 @@
 import { WeaponType, Rarity, KeywordType, WeaponKey, StatType, DamageTrait } from '../types/enums';
 import { Weapon, WeaponStats, Mod } from '../models/equipment';
 import { Burn, Shrapnel, FastGunner, BullsEye, PowerSurge, FrostVortex, UnstableBomber, Keyword, Bounce, FortressWarfare } from '../pipelines/keyword';
-import { TriggeredEffect, OnKillTrigger, OnHitTrigger, ChanceCondition } from '../models/trigger';
-import { ExplosionEffect, DoTEffect } from '../models/effect';
+import { TriggeredEffect, OnKillTrigger, OnHitTrigger, ChanceCondition, HitCounterCondition, TargetAtMaxStatusStacksCondition } from '../models/trigger';
+import { ExplosionEffect, DoTEffect, ShrapnelEffect, BaseEffect, IncreaseStatEffect } from '../models/effect';
 
 export function getKeywordInstance(type: KeywordType): Keyword {
     switch (type) {
@@ -107,6 +107,23 @@ export const WEAPONS: Record<WeaponKey, WeaponData> = {
         },
         keywordType: KeywordType.FastGunner,
         description: "35% chance to gain Fast Gunner stack on hit."
+    },
+    [WeaponKey.OctopusGrilledRings]: {
+        id: WeaponKey.OctopusGrilledRings,
+        name: "EBR-14: Octopus! Grilled Rings!",
+        type: WeaponType.SniperRifle,
+        rarity: Rarity.Legendary,
+        baseStats: {
+            damagePerProjectile: 471,
+            projectilesPerShot: 1,
+            fireRate: 300,
+            magazineCapacity: 20,
+            critRatePercent: 5,
+            weakspotDamagePercent: 50,
+            critDamagePercent: 40,
+        },
+        keywordType: KeywordType.Burn,
+        description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3."
     }
 };
 
@@ -137,6 +154,61 @@ export class KVDBoomBoom extends Weapon {
     }
 }
 
+/**
+ * Specialized class for DE.50 Jaws to handle hit-counting Unstable Bomber.
+ */
+export class DE50Jaws extends Weapon {
+    override getTriggeredEffects(): TriggeredEffect[] {
+        const effects = super.getTriggeredEffects();
+        
+        // Every 3 hits trigger Unstable Bomber. Crit = 2 hits.
+        // This requires a StateAware trigger that increments a counter in the context.
+        effects.push(new TriggeredEffect(
+            new OnHitTrigger(), 
+            [new ExplosionEffect(0.8, StatType.PsiIntensity, 0, "Unstable Bomber")],
+            [new HitCounterCondition(3, true)] // true = Crits count as 2
+        ));
+
+        return effects;
+    }
+}
+
+/**
+ * Specialized class for SOCR Last Valor to handle Shrapnel stacking.
+ */
+export class SOCRLastValor extends Weapon {
+    override getTriggeredEffects(): TriggeredEffect[] {
+        const effects = super.getTriggeredEffects();
+        
+        // Hitting 4 times triggers Shrapnel. Crit = 2 hits.
+        effects.push(new TriggeredEffect(
+            new OnHitTrigger(),
+            [new ShrapnelEffect()], // Specific Shrapnel resolution
+            [new HitCounterCondition(4, true)]
+        ));
+
+        return effects;
+    }
+}
+
+/**
+ * EBR-14: Octopus! Grilled Rings!
+ */
+export class OctopusGrilledRings extends Weapon {
+    override getTriggeredEffects(): TriggeredEffect[] {
+        const effects = [...super.getTriggeredEffects()];
+        
+        // At max stacks, generate a fire ring (Explosion)
+        effects.push(new TriggeredEffect(
+            new OnHitTrigger(),
+            [new ExplosionEffect(1.5, StatType.PsiIntensity, 0.5, "Fire Ring")],
+            [new TargetAtMaxStatusStacksCondition('status-burn')]
+        ));
+
+        return effects;
+    }
+}
+
 export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1, calibration: number = 0, mod?: Mod): Weapon {
     const data = WEAPONS[key];
     if (!data) throw new Error(`Weapon ${key} not found`);
@@ -150,17 +222,35 @@ export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1
     wStats.critDamagePercent.value = data.baseStats.critDamagePercent;
     wStats.weakspotDamagePercent.value = data.baseStats.weakspotDamagePercent;
 
-    const keyword = getKeywordInstance(data.keywordType);
+    let keyword = getKeywordInstance(data.keywordType);
+    let intrinsicEffects: BaseEffect[] = [];
+
+    // EBR-14 Octopus specific keyword overrides and intrinsics
+    if (key === WeaponKey.OctopusGrilledRings) {
+        keyword = new Burn(KeywordType.Burn, 0.12, StatType.PsiIntensity, StatType.BurnDamagePercent, 0.50, true, false);
+        intrinsicEffects = [
+            new IncreaseStatEffect(StatType.BurnDamageFactor, 75),
+            new IncreaseStatEffect(StatType.MaxBurnStacks, -3),
+            new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
+            new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20)
+        ];
+    }
 
     if (key === WeaponKey.KVDBoomBoom) {
-        return new KVDBoomBoom(
-            data.id, data.name, data.rarity, star, level, calibration, mod,
-            data.type, keyword, wStats, []
-        );
+        return new KVDBoomBoom(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, []);
+    }
+    if (key === WeaponKey.DE50Jaws) {
+        return new DE50Jaws(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, []);
+    }
+    if (key === WeaponKey.SOCRLastValor) {
+        return new SOCRLastValor(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, []);
+    }
+    if (key === WeaponKey.OctopusGrilledRings) {
+        return new OctopusGrilledRings(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, intrinsicEffects);
     }
 
     return new Weapon(
         data.id, data.name, data.rarity, star, level, calibration, mod,
-        data.type, keyword, wStats, [] 
+        data.type, keyword, wStats, intrinsicEffects 
     );
 }

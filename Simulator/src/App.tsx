@@ -10,7 +10,7 @@ import { Player, PlayerStats } from './models/player'
 import { Loadout } from './models/equipment'
 import { StatAggregator } from './engine/stat-aggregator'
 import { auditLog } from './engine/audit-log'
-import { StatType, ArmorSlot, WeaponSlot, WeaponKey, ArmorKey, ModKey, GearSlot } from './types/enums'
+import { StatType, ArmorSlot, WeaponSlot, WeaponKey, ArmorKey, ModKey, GearSlot, CalibrationStyle, AmmunitionType } from './types/enums'
 import { EncounterConditions } from './types/common'
 import { Substat } from './models/substat'
 import { BaseEffect } from './models/effect'
@@ -35,7 +35,16 @@ function App() {
   const [selectedItemIds, setSelectedItemIds] = useState<Record<string, string>>({});
   const [selectedModIds, setSelectedModIds] = useState<Record<string, string>>({});
   const [selectedSubstats, setSelectedSubstats] = useState<Record<string, [Substat, Substat, Substat, Substat]>>({});
+  const [starLevels, setStarLevels] = useState<Record<string, number>>({ [WeaponSlot.Main]: 6 });
+  const [tierLevels, setTierLevels] = useState<Record<string, number>>({ [WeaponSlot.Main]: 5 });
+  const [selectedAmmunition, setSelectedAmmunition] = useState<AmmunitionType>(AmmunitionType.TungstenAP);
   
+  // Calibration State (Weapon only for now)
+  const [calibrationStyle, setCalibrationStyle] = useState<CalibrationStyle>(CalibrationStyle.None);
+  const [weaponDamageBonus, setWeaponDamageBonus] = useState(0);
+  const [secondaryStatType, setSecondaryStatType] = useState<StatType>(StatType.CritDamagePercent);
+  const [secondaryStatValue, setSecondaryStatValue] = useState(0);
+
   const [activeSlot, setActiveSlot] = useState<GearSlot>(WeaponSlot.Main);
   const [simLogs, setSimLogs] = useState<SimulationLogEntry[]>([]);
 
@@ -54,8 +63,18 @@ function App() {
     if (wId && WEAPONS[wId]) {
         const modId = selectedModIds[WeaponSlot.Main] as ModKey;
         const substats = selectedSubstats[WeaponSlot.Main] || DEFAULT_SUBSTATS;
+        const star = starLevels[WeaponSlot.Main] || 1;
+        const tier = tierLevels[WeaponSlot.Main] || 5;
         const mod = (modId && MODS[modId]) ? createModInstance(modId, substats) : undefined;
-        l.weapon = createWeapon(wId, 1, 1, 0, mod);
+        const weapon = createWeapon(wId, star, tier, 10, mod);
+        
+        // Apply Calibration Matrix
+        weapon.calibrationMatrix.style = calibrationStyle;
+        weapon.calibrationMatrix.weaponDamageBonus = weaponDamageBonus;
+        weapon.calibrationMatrix.secondaryStatType = secondaryStatType;
+        weapon.calibrationMatrix.secondaryStatValue = secondaryStatValue;
+        
+        l.weapon = weapon;
     }
 
     for (const slot of Object.values(ArmorSlot)) {
@@ -63,8 +82,10 @@ function App() {
         if (itemId && ARMOR[itemId]) {
             const modId = selectedModIds[slot] as ModKey;
             const substats = selectedSubstats[slot] || DEFAULT_SUBSTATS;
+            const star = starLevels[slot] || 1;
+            const tier = tierLevels[slot] || 5;
             const mod = (modId && MODS[modId]) ? createModInstance(modId, substats) : undefined;
-            const armor = createArmor(itemId, 1, 1, 0, mod);
+            const armor = createArmor(itemId, star, tier, 10, mod);
             if (slot === ArmorSlot.Helmet) l.helmet = armor;
             else if (slot === ArmorSlot.Mask) l.mask = armor;
             else if (slot === ArmorSlot.Top) l.top = armor;
@@ -74,7 +95,7 @@ function App() {
         }
     }
     return l;
-  }, [selectedItemIds, selectedModIds, selectedSubstats]);
+  }, [selectedItemIds, selectedModIds, selectedSubstats, starLevels, tierLevels, calibrationStyle, weaponDamageBonus, secondaryStatType, secondaryStatValue]);
 
   const handleItemSelect = (slot: string, id: string) => setSelectedItemIds(prev => ({ ...prev, [slot]: id }));
   const handleModSelect = (slot: string, id: string) => {
@@ -96,14 +117,17 @@ function App() {
     if (index !== undefined) setScrubbedIndex(index);
   }, []);
 
-  const player = useMemo(() => {
+  const { player, baseStatsSnapshot } = useMemo(() => {
     const p = new Player(loadout, new PlayerStats(), 100);
-    StatAggregator.aggregate(p, conditions);
-    return p;
-  }, [loadout, conditions]);
+    p.selectedAmmunition = selectedAmmunition;
+    
+    StatAggregator.aggregate(p, conditions, 1.0, true, true);
+    const baseSnapshot = p.stats.snapshot();
+    StatAggregator.aggregate(p, conditions, 1.0, true, false);
+    return { player: p, baseStatsSnapshot: baseSnapshot };
+  }, [loadout, conditions, selectedAmmunition]);
 
-  const baseStatsSnapshot = useMemo(() => player.stats.snapshot(), [player]);
-  const currentStats = scrubbedStats || baseStatsSnapshot;
+  const currentStats = scrubbedStats || player.stats.snapshot();
   const slotStatus = useMemo(() => {
     const status: Record<string, boolean> = {};
     Object.keys(selectedItemIds).forEach(slot => { if (selectedItemIds[slot]) status[slot] = true; });
@@ -129,22 +153,46 @@ function App() {
 
       <main className="container-fluid mx-auto px-6 py-6">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6 items-start">
-          {/* Column 1: The PILOT (Inputs) - xl:span-3 */}
           <div className="xl:col-span-3 space-y-6 lg:sticky lg:top-24">
             <DiegeticFrame title="01. Encounter" subTitle="Combat Parameters">
-                <EncounterConditionsPanel conditions={conditions} onChange={setConditions} />
+                <EncounterConditionsPanel 
+                    conditions={conditions} 
+                    onChange={setConditions} 
+                    selectedAmmunition={selectedAmmunition}
+                    onAmmunitionChange={setSelectedAmmunition}
+                />
             </DiegeticFrame>
 
             <DiegeticFrame title="02. Loadout" subTitle="Hardware Config">
                 <div className="space-y-6">
                     <SlotDock activeSlot={activeSlot} onSlotSelect={setActiveSlot} slotStatus={slotStatus} />
                     <Separator className="bg-primary/5" />
-                    <TechnicalSchematic key={activeSlot} slot={activeSlot} selectedItemId={selectedItemIds[activeSlot]} selectedModId={selectedModIds[activeSlot]} selectedSubstats={selectedSubstats[activeSlot]} onItemSelect={(id) => handleItemSelect(activeSlot, id)} onModSelect={(id) => handleModSelect(activeSlot, id)} onSubstatChange={(subs) => handleSubstatChange(activeSlot, subs)} />
+                    <TechnicalSchematic 
+                        key={activeSlot} 
+                        slot={activeSlot} 
+                        selectedItemId={selectedItemIds[activeSlot]} 
+                        selectedModId={selectedModIds[activeSlot]} 
+                        selectedSubstats={selectedSubstats[activeSlot]} 
+                        onItemSelect={(id) => handleItemSelect(activeSlot, id)} 
+                        onModSelect={(id) => handleModSelect(activeSlot, id)} 
+                        onSubstatChange={(subs) => handleSubstatChange(activeSlot, subs)}
+                        starLevel={starLevels[activeSlot] || 1}
+                        onStarLevelChange={(star) => setStarLevels(prev => ({ ...prev, [activeSlot]: star }))}
+                        tierLevel={tierLevels[activeSlot] || 5}
+                        onTierLevelChange={(tier) => setTierLevels(prev => ({ ...prev, [activeSlot]: tier }))}
+                        calibrationStyle={calibrationStyle}
+                        onCalibrationStyleChange={setCalibrationStyle}
+                        weaponDamageBonus={weaponDamageBonus}
+                        onWeaponDamageBonusChange={setWeaponDamageBonus}
+                        secondaryStatType={secondaryStatType}
+                        onSecondaryStatTypeChange={setSecondaryStatType}
+                        secondaryStatValue={secondaryStatValue}
+                        onSecondaryStatValueChange={setSecondaryStatValue}
+                    />
                 </div>
             </DiegeticFrame>
           </div>
 
-          {/* Column 2: The HUD (Attribute Matrix & Bonuses) - xl:span-4 */}
           <div className="xl:col-span-4 space-y-6">
             <DynamicStatDisplay baseStats={baseStatsSnapshot} currentStats={currentStats} telemetry={telemetry} scrubbedIndex={scrubbedIndex} />
             
@@ -166,7 +214,6 @@ function App() {
             </DiegeticFrame>
           </div>
 
-          {/* Column 3: The ANALYTICS (Sim Results & Logs) - xl:span-5 */}
           <div className="md:col-span-2 xl:col-span-5 space-y-6">
             <DiegeticFrame className="p-0 overflow-hidden" title="04. Analytics" subTitle="Telemetry Stream">
               <Tabs defaultValue="dashboard" className="w-full">

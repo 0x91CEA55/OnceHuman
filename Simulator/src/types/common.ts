@@ -1,4 +1,4 @@
-import { EnemyType, EncounterTopology } from './enums';
+import { EnemyType, EncounterTopology, EventTrigger } from './enums';
 
 export class EncounterConditions {
     constructor(
@@ -30,8 +30,19 @@ export class ShotDamage {
 
 export class CombatEvent {
     constructor(
+        public readonly type: EventTrigger,
         public readonly shotNumber?: number,
         public readonly damageProfile?: DamageProfile,
         public readonly targetEntityId?: string
     ) {}
+}
+
+/**
+ * AggregationContext provides the transient state needed during stat calculation.
+ */
+export interface AggregationContext {
+    player: any; // Using any to avoid circular dependency with Player class
+    conditions: EncounterConditions;
+    ammoPercent: number;
+    loadout: any; // Using any to avoid circular dependency with Loadout class
 }

@@ -3,7 +3,7 @@ import { DamageTrait, EventTrigger } from '../types/enums';
 import { DamageProcessor } from '../engine/damage-processor';
 import { StatType, FlagType } from '../types/enums';
 import { Player } from './player';
-import { EncounterConditions, CombatEvent } from '../types/common';
+import { EncounterConditions, CombatEvent, AggregationContext } from '../types/common';
 import { StatusManager } from '../engine/status-manager';
 import { Entity } from './entity';
 
@@ -49,6 +49,41 @@ export abstract class BaseEffect {
     abstract executeDynamic(ctx: CombatContext, event?: CombatEvent): void;
     abstract getDescription(): string;
     abstract clone(newSource?: string): BaseEffect;
+}
+
+export class ConditionalEffect extends BaseEffect {
+    constructor(
+        public readonly predicate: (ctx: AggregationContext) => boolean,
+        public readonly effects: BaseEffect[],
+        source?: string
+    ) {
+        super(source);
+    }
+
+    applyStatic(player: Player, conditions: EncounterConditions, multiplier: number = 1): void {
+        const ctx: AggregationContext = {
+            player,
+            conditions,
+            ammoPercent: 1.0, 
+            loadout: player.loadout
+        };
+        
+        if (this.predicate(ctx)) {
+            for (const effect of this.effects) {
+                effect.applyStatic(player, conditions, multiplier);
+            }
+        }
+    }
+
+    executeDynamic(_ctx: CombatContext, _event?: CombatEvent): void {}
+
+    getDescription(): string {
+        return `Conditional: ${this.effects.map(e => e.getDescription()).join(', ')}`;
+    }
+
+    clone(newSource?: string): ConditionalEffect {
+        return new ConditionalEffect(this.predicate, this.effects.map(e => e.clone()), newSource ?? this.source);
+    }
 }
 
 export class IncreaseStatEffect extends BaseEffect {
@@ -99,9 +134,6 @@ export class SetFlagEffect extends BaseEffect {
     }
 }
 
-/**
- * Specifically for visualizing attribute changes that aren't tied to a complex logic effect.
- */
 export class StaticAttributeEffect extends BaseEffect {
     constructor(
         public readonly stat: StatType,
@@ -123,6 +155,37 @@ export class StaticAttributeEffect extends BaseEffect {
 
     clone(newSource?: string): StaticAttributeEffect {
         return new StaticAttributeEffect(this.stat, this.value, newSource ?? this.source);
+    }
+}
+
+export class ShrapnelEffect extends BaseEffect {
+    private processor = new DamageProcessor();
+
+    constructor(source?: string) {
+        super(source || 'Shrapnel');
+    }
+
+    applyStatic(_player: Player, _conditions: EncounterConditions, _multiplier: number = 1): void {}
+
+    executeDynamic(ctx: CombatContext, event?: CombatEvent): void {
+        const attack = (ctx.player.stats.get(StatType.AttackPercent) || { value: 0 }).value;
+        const baseDmg = attack * 0.50; 
+        
+        const target = (event as any)?.target || ctx.statusManager.owner;
+        const intent = new DamageIntent(baseDmg, ctx.player, target, true, 0.0, this.source)
+            .addTrait(DamageTrait.Weapon)
+            .addTrait(DamageTrait.Shrapnel);
+
+        const damage = this.processor.resolve(intent);
+        ctx.recordDamage(damage, this.source || 'Shrapnel', intent);
+    }
+
+    getDescription(): string {
+        return `Trigger Shrapnel (50% Attack)`;
+    }
+
+    clone(newSource?: string): ShrapnelEffect {
+        return new ShrapnelEffect(newSource ?? this.source);
     }
 }
 
@@ -149,9 +212,8 @@ export class ExplosionEffect extends BaseEffect {
         const baseStat = ctx.player.stats.get(this.statType)?.value ?? 0;
         const rawDamage = baseStat * this.scalingFactor;
         
-        // Explosion is AoE: hits main target AND nearby targets
         const mainTarget = (event as any)?.target || { id: 'unknown', hp: 99999, takeDamage: () => {}, isDead: () => false, statusManager: ctx.statusManager };
-        const otherTargets = ctx.getNearbyTargets(mainTarget, 5); // 5m radius standard
+        const otherTargets = ctx.getNearbyTargets(mainTarget, 5); 
         
         const allTargets = [mainTarget, ...otherTargets];
 
@@ -372,10 +434,18 @@ export class ActiveDoT extends StatusInstance {
         ctx.logEvent('DoT Stack', `${this.definition.name} (${this.currentStacks}x)`);
     }
 
-    tickWithDamage(currentTime: number, dt: number): boolean {
+    tickWithDamage(currentTime: number, dt: number, ctx: CombatContext): boolean {
         super.tick(dt);
+        
         if (currentTime >= this.nextTickTime) {
-            this.nextTickTime += this.definition.tickInterval;
+            // Calculate dynamic interval based on Frequency stat (e.g. BBQ Gloves)
+            let frequencyBonus = 0;
+            if (this.definition.id === 'status-burn') {
+                frequencyBonus = ctx.player.stats.get(StatType.BurnFrequencyPercent)?.value || 0;
+            }
+            
+            const dynamicInterval = this.definition.tickInterval / (1 + frequencyBonus / 100);
+            this.nextTickTime += dynamicInterval;
             return true;
         }
         return false;
