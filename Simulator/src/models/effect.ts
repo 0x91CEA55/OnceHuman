@@ -2,6 +2,7 @@ import { EffectType, StatType, FlagType, EventTrigger } from '../types/enums';
 
 export interface BaseEffect {
     type: EffectType;
+    source?: string; // Origin of the effect (e.g., 'Weapon', 'Mod: Fateful Strike', 'Set: Lonewolf')
     durationSeconds?: number;
     maxStacks?: number;
     currentStacks?: number;

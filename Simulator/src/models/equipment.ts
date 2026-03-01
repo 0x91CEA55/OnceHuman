@@ -24,7 +24,7 @@ export abstract class Equipment {
         public mod?: Mod
     ) { }
 
-    getActiveEffects(loadout: Loadout): Effect[] {
+    getActiveEffects(_loadout: Loadout): Effect[] {
         const effects: Effect[] = [];
         if (this.mod) {
             effects.push(...this.mod.effects, ...this.mod.subStats);
@@ -52,8 +52,8 @@ export class Weapon extends Equipment {
         public intrinsicEffects: Effect[]
     ) { super(id, name, rarity, star, level, calibration, mod); }
 
-    override getActiveEffects(loadout: Loadout): Effect[] {
-        return [...super.getActiveEffects(loadout), ...this.intrinsicEffects];
+    override getActiveEffects(_loadout: Loadout): Effect[] {
+        return [...super.getActiveEffects(_loadout), ...this.intrinsicEffects];
     }
 }
 
@@ -91,8 +91,8 @@ export class KeyArmor extends Armor {
         public intrinsicEffects: Effect[]
     ) { super(id, name, rarity, star, level, calibration, mod, slot, stats); }
 
-    override getActiveEffects(loadout: Loadout): Effect[] {
-        return [...super.getActiveEffects(loadout), ...this.intrinsicEffects];
+    override getActiveEffects(_loadout: Loadout): Effect[] {
+        return [...super.getActiveEffects(_loadout), ...this.intrinsicEffects];
     }
 }
 

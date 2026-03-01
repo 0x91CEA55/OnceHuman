@@ -1,45 +1,70 @@
 import { Player } from '../models/player';
 import { EffectType, StatType } from '../types/enums';
-import { SetArmor, Armor } from '../models/equipment';
+import { SetArmor, Armor, KeyArmor } from '../models/equipment';
 import { Effect, IncreaseStatEffect, SetFlagEffect } from '../models/effect';
+import { auditLog } from './audit-log';
 
 export class StatAggregator {
     static aggregate(player: Player): void {
         const { loadout, stats } = player;
-
-        // 1. Reset stats to zero (optional if PlayerStats constructor handles it, but safe for re-aggregation)
-        // Since PlayerStats initializes with 0, we'll just add to them.
-        // For a clean aggregation, we should probably reset them first.
-        // But for now, let's assume aggregate is called on a fresh PlayerStats.
+        auditLog.clear();
+        auditLog.log('Aggregation', 'Start', 'Resetting stats');
 
         // 2. Base Weapon Stats
         if (loadout.weapon) {
             const wStats = loadout.weapon.stats;
-            stats.add(StatType.DamagePerProjectile, wStats.damagePerProjectile.value);
-            stats.add(StatType.ProjectilesPerShot, wStats.projectilesPerShot.value);
-            stats.add(StatType.FireRate, wStats.fireRate.value);
-            stats.add(StatType.MagazineCapacity, wStats.magazineCapacity.value);
-            stats.add(StatType.CritRatePercent, wStats.critRatePercent.value);
-            stats.add(StatType.CritDamagePercent, wStats.critDamagePercent.value);
-            stats.add(StatType.WeakspotDamagePercent, wStats.weakspotDamagePercent.value);
+            const statsToAggregate = [
+                { type: StatType.DamagePerProjectile, val: wStats.damagePerProjectile.value },
+                { type: StatType.ProjectilesPerShot, val: wStats.projectilesPerShot.value },
+                { type: StatType.FireRate, val: wStats.fireRate.value },
+                { type: StatType.MagazineCapacity, val: wStats.magazineCapacity.value },
+                { type: StatType.CritRatePercent, val: wStats.critRatePercent.value },
+                { type: StatType.CritDamagePercent, val: wStats.critDamagePercent.value },
+                { type: StatType.WeakspotDamagePercent, val: wStats.weakspotDamagePercent.value }
+            ];
+
+            for (const s of statsToAggregate) {
+                stats.add(s.type, s.val);
+                auditLog.log('Weapon', `Base ${s.type}`, s.val);
+            }
         }
 
         // 3. Collect Effects from all equipment and mods
         const activeEffects: Effect[] = [];
         const armorPieces: Armor[] = [];
         
-        if (loadout.weapon) activeEffects.push(...loadout.weapon.getActiveEffects(loadout));
+        if (loadout.weapon) {
+            const weaponIntrinsic = loadout.weapon.intrinsicEffects.map((e: Effect) => ({ ...e, source: `Weapon: ${loadout.weapon!.name}` }));
+            activeEffects.push(...weaponIntrinsic);
+
+            if (loadout.weapon.mod) {
+                const modEffects = loadout.weapon.mod.effects.map((e: Effect) => ({ ...e, source: `Weapon Mod: ${loadout.weapon!.mod!.name}` }));
+                activeEffects.push(...modEffects);
+                auditLog.log('Mod', `Weapon Mod: ${loadout.weapon.mod.name}`, modEffects.length + ' effects');
+            }
+        }
         
         const slots: (keyof typeof loadout)[] = ['helmet', 'mask', 'top', 'gloves', 'pants', 'boots'];
         for (const slot of slots) {
             const piece = loadout[slot] as Armor | undefined;
             if (piece) {
-                activeEffects.push(...piece.getActiveEffects(loadout));
                 armorPieces.push(piece);
                 
                 // Add base armor stats (Psi Intensity)
                 if (piece.stats.psiIntensity) {
                     stats.add(StatType.PsiIntensity, piece.stats.psiIntensity.value);
+                    auditLog.log('Armor', `${slot} Base Psi Intensity`, piece.stats.psiIntensity.value);
+                }
+
+                if (piece instanceof KeyArmor) {
+                    const intrinsic = piece.intrinsicEffects.map((e: Effect) => ({ ...e, source: `Armor: ${piece.name}` }));
+                    activeEffects.push(...intrinsic);
+                }
+
+                if (piece.mod) {
+                    const modEffects = piece.mod.effects.map((e: Effect) => ({ ...e, source: `${slot.charAt(0).toUpperCase() + slot.slice(1)} Mod: ${piece.mod!.name}` }));
+                    activeEffects.push(...modEffects);
+                    auditLog.log('Mod', `${slot} Mod: ${piece.mod.name}`, modEffects.length + ' effects');
                 }
             }
         }
@@ -57,7 +82,9 @@ export class StatAggregator {
         for (const { count, set } of setCounts.values()) {
             for (const bonus of set.bonuses) {
                 if (count >= bonus.requiredPieces) {
-                    activeEffects.push(...bonus.effects);
+                    const setEffects = bonus.effects.map((e: Effect) => ({ ...e, source: `Set: ${set.name} (${bonus.requiredPieces}pc)` }));
+                    activeEffects.push(...setEffects);
+                    auditLog.log('SetBonus', `${set.name} (${count}pc)`, `${bonus.effects.length} effects active`);
                 }
             }
         }
@@ -66,16 +93,19 @@ export class StatAggregator {
         for (const effect of activeEffects) {
             switch (effect.type) {
                 case EffectType.IncreaseStat:
-                    stats.add((effect as IncreaseStatEffect).stat, (effect as IncreaseStatEffect).value);
+                    const increase = effect as IncreaseStatEffect;
+                    stats.add(increase.stat, increase.value);
+                    auditLog.log('Effect', `Increase ${increase.stat} (${effect.source})`, `+${increase.value}`);
                     break;
                 case EffectType.SetFlag:
-                    player.setFlag((effect as SetFlagEffect).flag, (effect as SetFlagEffect).value);
+                    const setFlag = effect as SetFlagEffect;
+                    player.setFlag(setFlag.flag, setFlag.value);
+                    auditLog.log('Effect', `Set Flag ${setFlag.flag} (${effect.source})`, setFlag.value);
                     break;
-                // OnEvent and Conditional effects are handled by the DamageEngine during simulation
             }
         }
         
-        // Store final active effects for the engine to use later
         player.activeEffects = activeEffects;
+        auditLog.log('Aggregation', 'Complete', `${activeEffects.length} total effects processed`);
     }
 }

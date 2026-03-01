@@ -21,7 +21,7 @@ export class DamageEngine {
     simulateMagDump(): number {
         let accumulatedExpectedDamage = 0;
         const magSize = this.player.stats.get(StatType.MagazineCapacity)?.value ?? 0;
-        let bulletsLeft = magSize; 
+        
         for (let bulletsLeft = magSize; bulletsLeft > 0; bulletsLeft--) {
             this.processActiveEffects();
 
@@ -39,7 +39,7 @@ export class DamageEngine {
         return accumulatedExpectedDamage;
     }
 
-    simulateShot(bulletsLeft: number): ShotDamage {
+    simulateShot(_bulletsLeft: number): ShotDamage {
         const bulletDmg = this.physicalPipeline.calculate(this.player, this.conditions);
 
         this.triggerEvent(EventTrigger.OnHit);
@@ -55,6 +55,6 @@ export class DamageEngine {
     }
 
     processActiveEffects(): Effect[] { return []; }
-    triggerEvent(eventName: EventTrigger) { }
+    triggerEvent(_eventName: EventTrigger) { }
     advanceTime() { }
 }

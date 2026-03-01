@@ -1,5 +1,7 @@
 # Phase 0+1: Data Schemas & Core Damage Engine — Low-Level Design
 
+> NOTE: This design is very stale and a lot of the implemented design has shifted. Please only rely on this for historical reference, some info might be inaccurate/wrong/outdated. Always reference authoritative source for knowledge on game mechanics etc. A lot of the semantics presented here are also inconsistent compared to the cleaner one offered in [high-level design](/Simulator/docs/design-high-level.md)'s formula section.
+
 > Companion to the high-level plan at `~/.claude/plans/fuzzy-splashing-sun.md`.
 > Sources tagged per Architect Protocol: `[empirical]`, `[agent-output]`, `[training-prior]`, `[user-stated]`.
 

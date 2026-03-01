@@ -27,7 +27,7 @@ export class PhysicalDamagePipeline extends BaseDamagePipeline {
             baseDamage,
             player.stats.get(StatType.CritRatePercent)?.value ?? 0,
             player.stats.get(StatType.CritDamagePercent)?.value ?? 0,
-            conditions.weakspotHitRate,
+            conditions.weakspotHitRate * 100,
             player.stats.get(StatType.WeakspotDamagePercent)?.value ?? 0,
             true,
             !player.hasFlag(FlagType.CannotDealWeakspotDamage)

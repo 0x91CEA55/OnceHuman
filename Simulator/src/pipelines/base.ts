@@ -21,20 +21,24 @@ export abstract class BaseDamagePipeline {
         baseDamage: number,
         critRatePercent: number,
         critDmgPercent: number,
-        wsRatePercent: number,
+        wsRatePercent: number, // Expecting 0-100
         wsDmgPercent: number,
         canCrit: boolean,
         canWs: boolean
     ): DamageProfile {
-        const critRate = canCrit ? Math.min(critRatePercent, 1.0) / 100 : 0;
-        const wsRate = canWs ? wsRatePercent / 100 : 0;
-        const critDmg = canCrit ? critDmgPercent / 100 : 0;
-        const wsDmg = canWs ? wsDmgPercent / 100 : 0;
+        const critRate = canCrit ? Math.min(critRatePercent, 100) / 100 : 0;
+        const wsRate = canWs ? Math.min(wsRatePercent, 100) / 100 : 0;
+        const critDmg = critDmgPercent / 100;
+        const wsDmg = wsDmgPercent / 100;
 
         const noCritNoWs = baseDamage;
-        const critNoWs = baseDamage * (1 + critDmg);
-        const noCritWs = baseDamage * (1 + wsDmg);
-        const critWs = baseDamage * (1 + critDmg + wsDmg);
+        const critNoWs = canCrit ? baseDamage * (1 + critDmg) : baseDamage;
+        const noCritWs = canWs ? baseDamage * (1 + wsDmg) : baseDamage;
+        
+        // Crit + Weakspot: Additive (1 + crit% + ws%)
+        const critWs = (canCrit && canWs) 
+            ? baseDamage * (1 + critDmg + wsDmg) 
+            : (canCrit ? critNoWs : (canWs ? noCritWs : baseDamage));
 
         const expected =
             noCritNoWs * (1 - critRate) * (1 - wsRate) +

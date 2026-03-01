@@ -58,38 +58,92 @@ Each weapon has exactly one keyword — its core combat identity. Keywords fall 
 | The Bull's Eye | Mark target + vulnerability debuff |
 | Fortress Warfare | Stationary zone granting attack buff |
 
+### Damage Formula
+
+```js
+// PHYSICAL ONLY MULTIPLIERS AND BASE DAMAGE
+AttackDamageBonusMultiplier = (1 + AttackDamageBonusPercent / 100)
+WeaponDamageBonusMultiplier = (1 + WeaponDamageBonusPercent / 100)
+CritOnlyDamageBonusMultiplier = (1 + CritOnlyDamageBonusPercent / 100)
+WeakspotOnlyDamageBonusMultiplier = (1 + WeakspotOnlyDamageBonusPercent / 100)
+CritWeakspotDamageBonusMultiplier = (1 + (CritDamageBonusPercent + WeakspotDamageBonusPercent) / 100)
+
+// KEYWORD-ONLY MULTIPLIERS (BOTH ELEMENTAL/STATUS AND PHYSICAL KEYWORDS)
+KeywordDamageBonusMultiplier = (1 + KeywordDamageBonusPercent / 100)
+KeywordCritOnlyDamageBonusMultiplier = (1 + KeywordCritOnlyDamageBonusPercent / 100)
+KeywordWeakspotOnlyDamageBonusMultiplier = (1 + KeywordWeakspotOnlyDamageBonusPercent / 100)
+KeywordCritWeakspotDamageBonusMultiplier = (1 + (KeywordCritOnlyDamageBonusPercent + KeywordWeakspotOnlyDamageBonusPercent) / 100)
+// ELEMENTAL/STATUS KEYWORD ONLY MULTIPLIERS
+ElementalDamageBonusMultiplier = (1 + ElementalDamageBonusPercent / 100)
+StatusDamageBonusMultiplier = (1 + StatusDamageBonusPercent / 100)
+// PHYSICAL KEYWORD ONLY MULTIPLIERS (none???)
+AttackDamageBonusMultiplier = // <same as physical only>
+WeaponDamageBonusMultiplier = // <same as physical only>
+CritOnlyDamageBonusMultiplier = //  are these present in PHYSICAL KEYWORD multipliers or do they just use the Keyword* variants only?
+WeakspotOnlyDamageBonusMultiplier = // are these present in PHYSICAL KEYWORD multipliers or do they just use the Keyword* variants only?
+
+// COMMON ACROSS ALL
+EnemyTypeDamageBonusMultiplier = (1 + EnemyTypeDamageBonusPercent / 100)
+VulnerableEnemyDamageBonusMultiplier = (1 + VulnerableEnemyDamageBonusPercent / 100)
+```
+
 ### Damage Formula — Physical
 
-Physical damage is computed through **multiplicative buckets** (additive within each bucket, multiplicative across):
+```js
+BasePhysicalDamage = BaseWeaponDamage 
+  * AttackDamageBonusMultiplier 
+  * WeaponDamageBonusMultiplier  // unsure if AttackDamageBonusPercent + WeaponDamageBonusMultiplier are additive within same bucket or multiplicative across
 
+PerProjectilePhysicalDamage = BasePhysicalDamage
+  * CritWeakspotDamageBonusMultiplier // or CriOnlyDamageBonusMultiplier or WeakspotOnlyDamageBonusMultiplier
+  * EnemyTypeDamageBonusMultiplier
+  * VulnerableEnemyDamageBonusMultiplier
+  * ...
+
+PerShotPhysicalDamage = PerProjectilePhysicalDamage * ProjectilesPerShot
 ```
-Per-projectile damage = base_damage
-  * (1 + weapon_damage_% + attack_% + status_damage_%) / 100     [Bucket A]
-  * (1 + enemy_type_bonus / 100)                                  [Bucket B]
-  * (1 + crit_damage_% / 100)          [Bucket C — if crit]
-  * (1 + weakspot_damage_% / 100)      [Bucket D — if weakspot]
-  * (1 + vulnerability_% / 100)        [Bucket E — target debuff]
 
-Per-shot damage = per_projectile * projectiles_per_shot
-```
+### Damage Formula — Keyword
 
-> **Open question:** Whether Buckets C and D (crit + weakspot) are truly separate multiplicative buckets or additive in the same bucket requires in-game validation. Reference implementation (lReDragol) uses multiplicative; community consensus (Gemini research) claims additive. Engine is designed to support either model.
+#### Elemental/Status Damage Keywords
 
-### Damage Formula — Elemental/Status
+```js
+BaseElementalKeywordDamage = [(KeywordFactorPercent / 100) * PsiIntensity]
+  * ElementalDamageBonusMultiplier
+  * StatusDamageBonusMultiplier
 
-Elemental procs use a completely separate base stat:
-
-```
-Elemental damage per tick/proc = (Psi_Intensity * keyword_percent / 100)
-  * (1 + elemental_damage_% / 100)
-  * (1 + status_damage_% / 100)
-  * (1 + specific_keyword_damage_% / 100)
-  * (1 + damage_vs_enemy_type_% / 100)
+PerProcTickElementalDamage = BaseElementalKeywordDamage
+  * KeywordCritWeakspotDamageBonusMultiplier // or KeywordCritOnlyDamageBonusMultiplier or KeywordWeakspotOnlyDamageBonusMultiplier
+  * KeywordDamageBonusMultiplier
+  * EnemyTypeDamageBonusMultiplier
+  * VulnerableEnemyDamageBonusMultiplier // unsure about this one for kw procs or if its accounted for only in physical damage value (e.g. BullsEye add vulnerability, but does the procs damage exist or is it a KeywordFactorPercent of 0 effectively under the hood?) 
+  * ... // do these need to be accounted via special mechanics mostly for non-direct damaging effect like fire rate (FastGunner) and Bounce (very complex since it ricochets to other enemies but also possibly the same target and highly mod dependent in mechanic). I'm thinking we should modelize our domain around whether keywords are Elemental or Physical or Utility or something else? Do we simply capture the ensemble of interactions via Effect[] for each weapon and only rely on our Keyword data model for the determination of BaseDamage to use and KeywordFactorPercent? Or should we go more OOP specific and have each keyword subclass define their own calculate variant that carefully selects the various multiplier buckets conditionally and very dedicatedly while also accounting for complex loadout /player state dependencies like mods, bufffs, etc?
 ```
 
 Psi Intensity is aggregated from armor pieces and scales by rarity, star level, and character level.
+All other stats are aggregated from across ALL equipments (weapon, armor, mods) and also scale by similar dimensions (but no exactly the same).
 
+#### Physical Damage Keywords
+
+Physical KW procs use similar formula:
+
+```js
+BasePhysicalKeywordDamage = [(KeywordFactorPercent / 100) * BaseWeaponDamage]
+  * AttackDamageBonusMultiplier 
+  * WeaponDamageBonusMultiplier
+  = (KeywordFactorPercent / 100) * BasePhysicalDamage // i think?? confirm via websearch?
+
+
+PerProcTickPhysicalDamage = BasePhysicalKeywordDamage
+  * KeywordCritWeakspotDamageBonusMultiplier // or KeywordCritOnlyDamageBonusMultiplier or KeywordWeakspotOnlyDamageBonusMultiplier
+  * KeywordDamageBonusMultiplier
+  * EnemyTypeDamageBonusMultiplier
+  * VulnerableEnemyDamageBonusMultiplier // unsure about this one for kw procs or if its accounted for only in physical damage value (e.g. BullsEye add vulnerability, but does the procs damage exist or is it a KeywordFactorPercent of 0 effectively under the hood?)
+  * ... // do these need to be accounted via special mechanics mostly for non-direct damaging effect like fire rate (FastGunner) and Bounce (very complex since it ricochets to other enemies but also possibly the same target and highly mod dependent in mechanic). I'm thinking we should modelize our domain around whether keywords are Elemental or Physical or Utility or something else? Do we simply capture the ensemble of interactions via Effect[] for each weapon and only rely on our Keyword data model for the determination of BaseDamage to use and KeywordFactorPercent? Or should we go more OOP specific and have each keyword subclass define their own calculate variant that carefully selects the various multiplier buckets conditionally and very dedicatedly while also accounting for complex loadout /player state dependencies like mods, bufffs, etc?
+```
 ### DPS Formulas
+
+> NOTE: Please update this section to use consistent semantic naming from formula sections that use clean PascalCase and properly suffix Percent to designate a percent and the bonus concept and a multiplier. Also take care of being more specific like 'damage_per_shot' should be what, the PerShotPhysicalDamage??
 
 ```
 Expected DPS    = E[damage_per_shot] * effective_fire_rate / 60
@@ -146,9 +200,23 @@ Forked from [lReDragol/OnceHuman_Tools](https://github.com/lReDragol/OnceHuman_T
 - Armor stat lookup tables by rarity/star/level
 - Gear set definitions with tiered bonuses
 
+### Useful Reference URLs (see local version downloaded in [/Simulator/src/data/raw/](/Simulator/src/data/raw/))
+- https://github.com/lReDragol/OnceHuman_Tools/tree/master/data/menu/calc/bd_json/
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/bd_json/all_armor_stats.json
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/bd_json/armor_sets.json
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/bd_json/items_and_sets.json
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/bd_json/mods_config.json
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/bd_json/weapon_list.json
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/config_manager.py
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/context_module.py
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/mechanics.py
+- https://github.com/lReDragol/OnceHuman_Tools/blob/master/data/menu/calc/player.py
+
 ---
 
 ## Phased Implementation Plan
+
+> NOTE: Subject to change. Not strictly followed. Many initial plan phases diverged considerably. Here only for historical context.
 
 ### Phase 0: Data Prep
 - Fork lReDragol JSON data into `Simulator/DataEngine/`
@@ -198,13 +266,3 @@ Forked from [lReDragol/OnceHuman_Tools](https://github.com/lReDragol/OnceHuman_T
 - Performance optimization
 
 ---
-
-## Low-Level Design Documents
-
-| Phase | Document | Status |
-|---|---|---|
-| 0+1 | [phase-0-1-data-engine.md](phase-0-1-data-engine.md) | Draft — pending review |
-| 2 | Build profiles + UI | Not started |
-| 3 | Mod effect engine | Not started |
-| 4 | Elemental damage | Not started |
-| 5 | Event-driven simulation | Not started |
