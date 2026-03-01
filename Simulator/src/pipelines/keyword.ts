@@ -2,13 +2,19 @@ import { BaseDamagePipeline } from './base';
 import { Player } from '../models/player';
 import { EncounterConditions, DamageProfile } from '../types/common';
 import { StatType, KeywordType, FlagType } from '../types/enums';
+import { TriggeredEffect, OnHitTrigger, ChanceCondition, EveryNShotsTrigger } from '../models/trigger';
+import { DoTEffect } from '../models/effect';
 
 export interface Keyword {
     type: KeywordType;
     scalingFactor: number | undefined;
     baseStatType: StatType | undefined;
     dmgStatType: StatType | undefined;
+    baseTriggerChance: number;
+    canCrit: boolean;
+    canWeakspot: boolean;
 
+    getTriggeredEffects(): TriggeredEffect[];
     getExpectedProcsPerShot(player: Player, damageProfile: DamageProfile): number;
 }
 
@@ -17,10 +23,33 @@ export class Burn implements Keyword {
         public type: KeywordType = KeywordType.Burn,
         public scalingFactor: number | undefined = 0.12,
         public baseStatType: StatType | undefined = StatType.PsiIntensity,
-        public dmgStatType: StatType | undefined = StatType.BurnDamagePercent
+        public dmgStatType: StatType | undefined = StatType.BurnDamagePercent,
+        public baseTriggerChance: number = 0.18,
+        public canCrit: boolean = false,
+        public canWeakspot: boolean = false
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            // 1. Base Burn DoT
+            new TriggeredEffect(
+                new OnHitTrigger(),
+                [new DoTEffect(
+                    'status-burn', 
+                    'Burn', 
+                    0.5, 
+                    6, 
+                    5, 
+                    StatType.MaxBurnStacks, 
+                    StatType.BurnDurationPercent
+                )],
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return this.baseTriggerChance;
     }
 }
 
@@ -29,10 +58,25 @@ export class Shrapnel implements Keyword {
         public type = KeywordType.Shrapnel,
         public scalingFactor: number | undefined = 0.6,
         public baseStatType: StatType | undefined = StatType.DamagePerProjectile,
-        public dmgStatType: StatType | undefined = StatType.ShrapnelDamagePercent
+        public dmgStatType: StatType | undefined = StatType.ShrapnelDamagePercent,
+        public baseTriggerChance: number = 0.04,
+        public canCrit: boolean = true,
+        public canWeakspot: boolean = false
     ) {}
-    getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new OnHitTrigger(),
+                [],
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
+    getExpectedProcsPerShot(player: Player, _damageProfile: DamageProfile): number {
+        const critRate = (player.stats.get(StatType.CritRatePercent)?.value ?? 0) / 100;
+        return this.baseTriggerChance * (1 + critRate);
     }
 }
 
@@ -41,10 +85,24 @@ export class FrostVortex implements Keyword {
         public type = KeywordType.FrostVortex,
         public scalingFactor: number = 0.5,
         public baseStatType: StatType | undefined = StatType.PsiIntensity,
-        public dmgStatType: StatType | undefined = StatType.FrostVortexDamagePercent
+        public dmgStatType: StatType | undefined = StatType.FrostVortexDamagePercent,
+        public baseTriggerChance: number = 0.10,
+        public canCrit: boolean = false,
+        public canWeakspot: boolean = false
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new OnHitTrigger(),
+                [new DoTEffect('status-vortex', 'Frost Vortex', 0.5, 4, 1)],
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return this.baseTriggerChance;
     }
 }
 
@@ -53,10 +111,24 @@ export class PowerSurge implements Keyword {
         public type = KeywordType.PowerSurge,
         public scalingFactor: number = 1.0,
         public baseStatType: StatType | undefined = StatType.PsiIntensity,
-        public dmgStatType: StatType | undefined = StatType.PowerSurgeDamagePercent
+        public dmgStatType: StatType | undefined = StatType.PowerSurgeDamagePercent,
+        public baseTriggerChance: number = 0.15,
+        public canCrit: boolean = true,
+        public canWeakspot: boolean = false
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new OnHitTrigger(),
+                [],
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return this.baseTriggerChance;
     }
 }
 
@@ -65,22 +137,50 @@ export class UnstableBomber implements Keyword {
         public type = KeywordType.UnstableBomber,
         public scalingFactor: number = 0.7,
         public baseStatType: StatType | undefined = StatType.PsiIntensity,
-        public dmgStatType: StatType | undefined = StatType.UnstableBomberDamagePercent
+        public dmgStatType: StatType | undefined = StatType.UnstableBomberDamagePercent,
+        public baseTriggerChance: number = 1.0,
+        public canCrit: boolean = true,
+        public canWeakspot: boolean = true
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new EveryNShotsTrigger(4),
+                [],
+                []
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return 0.25;
     }
 }
 
 export class Bounce implements Keyword {
     constructor(
         public type = KeywordType.Bounce,
-        public scalingFactor: number | undefined = undefined,
-        public baseStatType: StatType | undefined = undefined,
-        public dmgStatType: StatType | undefined = StatType.BounceDamagePercent
+        public scalingFactor: number | undefined = 0.6,
+        public baseStatType: StatType | undefined = StatType.DamagePerProjectile,
+        public dmgStatType: StatType | undefined = StatType.BounceDamagePercent,
+        public baseTriggerChance: number = 0.30,
+        public canCrit: boolean = true,
+        public canWeakspot: boolean = false
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new OnHitTrigger(),
+                [],
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return this.baseTriggerChance;
     }
 }
 
@@ -89,11 +189,14 @@ export class FortressWarfare implements Keyword {
         public type = KeywordType.FortressWarfare,
         public scalingFactor: number | undefined = undefined,
         public baseStatType: StatType | undefined = undefined,
-        public dmgStatType: StatType | undefined = undefined
+        public dmgStatType: StatType | undefined = undefined,
+        public baseTriggerChance: number = 0,
+        public canCrit: boolean = false,
+        public canWeakspot: boolean = false
     ) {}
-    getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
-    }
+
+    getTriggeredEffects(): TriggeredEffect[] { return []; }
+    getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number { return 0; }
 }
 
 export class FastGunner implements Keyword {
@@ -101,10 +204,24 @@ export class FastGunner implements Keyword {
         public type = KeywordType.FastGunner,
         public scalingFactor: number | undefined = undefined,
         public baseStatType: StatType | undefined = undefined,
-        public dmgStatType: StatType | undefined = undefined
+        public dmgStatType: StatType | undefined = undefined,
+        public baseTriggerChance: number = 0.35,
+        public canCrit: boolean = false,
+        public canWeakspot: boolean = false
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new OnHitTrigger(),
+                [new DoTEffect('buff-fastgunner', 'Fast Gunner', 100, 2, 10)], // Using DoTEffect as a generic stackable buff for now, or should use BuffEffect?
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return this.baseTriggerChance;
     }
 }
 
@@ -114,10 +231,24 @@ export class BullsEye implements Keyword {
         public scalingFactor: number | undefined = undefined,
         public baseStatType: StatType | undefined = undefined,
         public dmgStatType: StatType | undefined = undefined,
-        public vulnerabilityStatType: StatType | undefined = StatType.BullsEyeDamagePercent
+        public vulnerabilityStatType: StatType | undefined = StatType.BullsEyeDamagePercent,
+        public baseTriggerChance: number = 0.70,
+        public canCrit: boolean = false,
+        public canWeakspot: boolean = false
     ) {}
+
+    getTriggeredEffects(): TriggeredEffect[] {
+        return [
+            new TriggeredEffect(
+                new OnHitTrigger(), 
+                [new DoTEffect('status-bullseye', 'Bull\'s Eye', 100, 10, 1)],
+                [new ChanceCondition(this.baseTriggerChance)]
+            )
+        ];
+    }
+
     getExpectedProcsPerShot(_player: Player, _damageProfile: DamageProfile): number {
-        throw new Error('Method not implemented.');
+        return this.baseTriggerChance;
     }
 }
 
@@ -134,7 +265,8 @@ export class KeywordDamagePipeline extends BaseDamagePipeline {
 
     private getKeywordSpecificMultiplier(player: Player): number {
         const statType = player.loadout.weapon?.keyword?.dmgStatType;
-        return statType ? 1 + (player.stats.get(statType)?.value ?? 0) / 100 : 1.0;
+        const value = statType ? (player.stats.get(statType)?.value ?? 0) : 0;
+        return 1 + (value / 100);
     }
 
     private getAttackMultiplier(player: Player): number {
@@ -157,7 +289,6 @@ export class KeywordDamagePipeline extends BaseDamagePipeline {
             * this.getEnemyMultiplier(player, conditions)
             * this.getVulnerabilityMultiplier(player, conditions);
 
-        // Physical keywords (like Shrapnel) scale with Attack
         if (kw.baseStatType === StatType.DamagePerProjectile) {
             multiplier *= this.getAttackMultiplier(player);
         }
@@ -168,14 +299,14 @@ export class KeywordDamagePipeline extends BaseDamagePipeline {
         const critDmg = (player.stats.get(StatType.CritDamagePercent)?.value ?? 0) + (player.stats.get(StatType.KeywordCritDamagePercent)?.value ?? 0);
         const wsDmg = player.stats.get(StatType.WeakspotDamagePercent)?.value ?? 0;
 
-        return this.calculateDamageProfile(
-            finalBaseDmg,
-            critRate,
-            critDmg,
-            conditions.weakspotHitRate * 100,
-            wsDmg,
-            player.hasFlag(FlagType.KeywordCanCrit),
-            player.hasFlag(FlagType.KeywordCanWeakspot)
-        );
+        return this.calculateDamageProfile({
+            baseDamage: finalBaseDmg,
+            critRatePercent: critRate,
+            critDmgPercent: critDmg,
+            wsRatePercent: conditions.weakspotHitRate * 100,
+            wsDmgPercent: wsDmg,
+            canCrit: kw.canCrit || player.hasFlag(FlagType.KeywordCanCrit),
+            canWs: kw.canWeakspot || player.hasFlag(FlagType.KeywordCanWeakspot)
+        });
     }
 }

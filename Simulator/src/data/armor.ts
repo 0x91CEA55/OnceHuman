@@ -1,78 +1,80 @@
-import { ArmorSlot, Rarity, StatType, EffectType } from '../types/enums';
-import { SetArmor, KeyArmor, ArmorStats, ArmorSetDefinition, Armor } from '../models/equipment';
-import { Effect } from '../models/effect';
+import { ArmorSlot, Rarity, StatType, ArmorKey, ArmorSetKey } from '../types/enums';
+import { SetArmor, KeyArmor, ArmorStats, ArmorSetDefinition, Armor, Mod } from '../models/equipment';
+import { BaseEffect, IncreaseStatEffect } from '../models/effect';
 
 export interface ArmorData {
-    id: string;
+    id: ArmorKey;
     name: string;
     slot: ArmorSlot;
     rarity: Rarity;
-    setId?: string;
-    intrinsicEffects?: Effect[];
+    setKey?: ArmorSetKey;
+    intrinsicEffects?: BaseEffect[];
 }
 
 export interface ArmorSetData {
-    id: string;
+    id: ArmorSetKey;
     name: string;
-    bonuses: { requiredPieces: number; effects: Effect[] }[];
+    bonuses: { requiredPieces: number; effects: BaseEffect[] }[];
 }
 
-export const ARMOR_SETS: Record<string, ArmorSetData> = {
-    'lonewolf_set': {
-        id: 'lonewolf_set',
+export const ARMOR_SETS: Record<ArmorSetKey, ArmorSetData> = {
+    [ArmorSetKey.Lonewolf]: {
+        id: ArmorSetKey.Lonewolf,
         name: 'Lonewolf Set',
         bonuses: [
-            { requiredPieces: 1, effects: [{ type: EffectType.IncreaseStat, stat: StatType.MagazineCapacity, value: 10 } as any] },
-            { requiredPieces: 2, effects: [{ type: EffectType.IncreaseStat, stat: StatType.CritRatePercent, value: 5 } as any] },
-            { requiredPieces: 3, effects: [{ type: EffectType.IncreaseStat, stat: StatType.CritDamagePercent, value: 12 } as any] },
-            { requiredPieces: 4, effects: [{ type: EffectType.IncreaseStat, stat: StatType.CritRatePercent, value: 8 } as any] }, // Simplified 4pc
+            { requiredPieces: 1, effects: [new IncreaseStatEffect(StatType.MagazineCapacity, 10)] },
+            { requiredPieces: 2, effects: [new IncreaseStatEffect(StatType.CritRatePercent, 5)] },
+            { requiredPieces: 3, effects: [new IncreaseStatEffect(StatType.CritDamagePercent, 12)] },
+            { requiredPieces: 4, effects: [new IncreaseStatEffect(StatType.CritRatePercent, 8)] }, 
         ]
     },
-    'bastille_set': {
-        id: 'bastille_set',
+    [ArmorSetKey.Bastille]: {
+        id: ArmorSetKey.Bastille,
         name: 'Bastille Set',
         bonuses: [
-            { requiredPieces: 1, effects: [{ type: EffectType.IncreaseStat, stat: StatType.WeaponDamagePercent, value: 10 } as any] },
-            { requiredPieces: 2, effects: [{ type: EffectType.IncreaseStat, stat: StatType.AttackPercent, value: 5 } as any] },
-            { requiredPieces: 3, effects: [{ type: EffectType.IncreaseStat, stat: StatType.CritDamagePercent, value: 10 } as any] },
+            { requiredPieces: 1, effects: [new IncreaseStatEffect(StatType.WeaponDamagePercent, 10)] },
+            { requiredPieces: 2, effects: [new IncreaseStatEffect(StatType.AttackPercent, 5)] },
+            { requiredPieces: 3, effects: [new IncreaseStatEffect(StatType.CritDamagePercent, 10)] },
         ]
     }
 };
 
-export const ARMOR_DB: ArmorData[] = [
-    { id: 'lonewolf_hood', name: 'Lonewolf Hood', slot: ArmorSlot.Helmet, rarity: Rarity.Legendary, setId: 'lonewolf_set' },
-    { id: 'lonewolf_mask', name: 'Lonewolf Mask', slot: ArmorSlot.Mask, rarity: Rarity.Legendary, setId: 'lonewolf_set' },
-    { id: 'lonewolf_jacket', name: 'Lonewolf Jacket', slot: ArmorSlot.Top, rarity: Rarity.Legendary, setId: 'lonewolf_set' },
-    { id: 'lonewolf_gloves', name: 'Lonewolf Gloves', slot: ArmorSlot.Gloves, rarity: Rarity.Legendary, setId: 'lonewolf_set' },
-    { id: 'lonewolf_pants', name: 'Lonewolf Pants', slot: ArmorSlot.Pants, rarity: Rarity.Legendary, setId: 'lonewolf_set' },
-    { id: 'lonewolf_shoes', name: 'Lonewolf Shoes', slot: ArmorSlot.Boots, rarity: Rarity.Legendary, setId: 'lonewolf_set' },
+export const ARMOR: Record<ArmorKey, ArmorData> = {
+    [ArmorKey.LonewolfHood]: { id: ArmorKey.LonewolfHood, name: 'Lonewolf Hood', slot: ArmorSlot.Helmet, rarity: Rarity.Legendary, setKey: ArmorSetKey.Lonewolf },
+    [ArmorKey.LonewolfMask]: { id: ArmorKey.LonewolfMask, name: 'Lonewolf Mask', slot: ArmorSlot.Mask, rarity: Rarity.Legendary, setKey: ArmorSetKey.Lonewolf },
+    [ArmorKey.LonewolfJacket]: { id: ArmorKey.LonewolfJacket, name: 'Lonewolf Jacket', slot: ArmorSlot.Top, rarity: Rarity.Legendary, setKey: ArmorSetKey.Lonewolf },
+    [ArmorKey.LonewolfGloves]: { id: ArmorKey.LonewolfGloves, name: 'Lonewolf Gloves', slot: ArmorSlot.Gloves, rarity: Rarity.Legendary, setKey: ArmorSetKey.Lonewolf },
+    [ArmorKey.LonewolfPants]: { id: ArmorKey.LonewolfPants, name: 'Lonewolf Pants', slot: ArmorSlot.Pants, rarity: Rarity.Legendary, setKey: ArmorSetKey.Lonewolf },
+    [ArmorKey.LonewolfShoes]: { id: ArmorKey.LonewolfShoes, name: 'Lonewolf Shoes', slot: ArmorSlot.Boots, rarity: Rarity.Legendary, setKey: ArmorSetKey.Lonewolf },
     
-    { 
-        id: 'beret', 
+    [ArmorKey.Beret]: { 
+        id: ArmorKey.Beret, 
         name: 'Beret', 
         slot: ArmorSlot.Helmet, 
         rarity: Rarity.Legendary, 
-        intrinsicEffects: [{ type: EffectType.IncreaseStat, stat: StatType.ShrapnelDamagePercent, value: 10 } as any] 
+        intrinsicEffects: [new IncreaseStatEffect(StatType.ShrapnelDamagePercent, 10)] 
     },
-    { 
-        id: 'oasis_mask', 
+    [ArmorKey.OasisMask]: { 
+        id: ArmorKey.OasisMask, 
         name: 'Oasis Mask', 
         slot: ArmorSlot.Mask, 
         rarity: Rarity.Legendary, 
-        intrinsicEffects: [{ type: EffectType.IncreaseStat, stat: StatType.AttackPercent, value: 10 } as any] 
+        intrinsicEffects: [new IncreaseStatEffect(StatType.AttackPercent, 10)] 
     },
-];
+};
 
-export function createArmorFromDb(data: ArmorData, star: number = 1, level: number = 1, calibration: number = 0): Armor {
+export function createArmor(key: ArmorKey, star: number = 1, level: number = 1, calibration: number = 0, mod?: Mod): Armor {
+    const data = ARMOR[key];
+    if (!data) throw new Error(`Armor ${key} not found`);
+
     const stats = new ArmorStats();
-    // Default Psi Intensity based on level/rarity mapping from reference
     stats.psiIntensity.value = 16 * level; 
 
-    if (data.setId && ARMOR_SETS[data.setId]) {
-        const setData = ARMOR_SETS[data.setId];
+    if (data.setKey && ARMOR_SETS[data.setKey]) {
+        const setData = ARMOR_SETS[data.setKey];
         const setDef = new ArmorSetDefinition(setData.id, setData.name, setData.bonuses);
-        return new SetArmor(data.id, data.name, data.rarity, star, level, calibration, undefined, data.slot, stats, setDef);
+        return new SetArmor(data.id, data.name, data.rarity, star, level, calibration, mod, data.slot, stats, setDef);
     } else {
-        return new KeyArmor(data.id, data.name, data.rarity, star, level, calibration, undefined, data.slot, stats, data.intrinsicEffects || []);
+        return new KeyArmor(data.id, data.name, data.rarity, star, level, calibration, mod, data.slot, stats, data.intrinsicEffects || []);
     }
 }

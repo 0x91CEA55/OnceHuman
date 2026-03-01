@@ -2,12 +2,26 @@ import { Player } from '../models/player';
 import { EncounterConditions, DamageProfile } from '../types/common';
 import { EnemyType, StatType } from '../types/enums';
 
+export interface DamageCalculationParams {
+    baseDamage: number;
+    critRatePercent: number;
+    critDmgPercent: number;
+    wsRatePercent: number;
+    wsDmgPercent: number;
+    canCrit: boolean;
+    canWs: boolean;
+}
+
 export abstract class BaseDamagePipeline {
+    private static readonly ENEMY_STAT_MAP: Record<EnemyType, StatType> = {
+        [EnemyType.Normal]: StatType.DamageBonusNormal,
+        [EnemyType.Elite]: StatType.DamageBonusElite,
+        [EnemyType.Boss]: StatType.DamageBonusBoss,
+    };
+
     protected getEnemyMultiplier(player: Player, conditions: EncounterConditions): number {
-        let bonus = 0;
-        if (conditions.enemyType === EnemyType.Normal) bonus = player.stats.get(StatType.DamageBonusNormal)?.value ?? 0;
-        else if (conditions.enemyType === EnemyType.Elite) bonus = player.stats.get(StatType.DamageBonusElite)?.value ?? 0;
-        else if (conditions.enemyType === EnemyType.Boss) bonus = player.stats.get(StatType.DamageBonusBoss)?.value ?? 0;
+        const statType = BaseDamagePipeline.ENEMY_STAT_MAP[conditions.enemyType];
+        const bonus = player.stats.get(statType)?.value ?? 0;
         return 1 + (bonus / 100);
     }
 
@@ -17,15 +31,9 @@ export abstract class BaseDamagePipeline {
             : 1.0;
     }
 
-    protected calculateDamageProfile(
-        baseDamage: number,
-        critRatePercent: number,
-        critDmgPercent: number,
-        wsRatePercent: number, // Expecting 0-100
-        wsDmgPercent: number,
-        canCrit: boolean,
-        canWs: boolean
-    ): DamageProfile {
+    protected calculateDamageProfile(params: DamageCalculationParams): DamageProfile {
+        const { baseDamage, critRatePercent, critDmgPercent, wsRatePercent, wsDmgPercent, canCrit, canWs } = params;
+        
         const critRate = canCrit ? Math.min(critRatePercent, 100) / 100 : 0;
         const wsRate = canWs ? Math.min(wsRatePercent, 100) / 100 : 0;
         const critDmg = critDmgPercent / 100;

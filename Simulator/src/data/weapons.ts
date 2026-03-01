@@ -1,20 +1,32 @@
-import { WeaponType, Rarity, KeywordType } from '../types/enums';
+import { WeaponType, Rarity, KeywordType, WeaponKey, StatType } from '../types/enums';
 import { Weapon, WeaponStats, Mod } from '../models/equipment';
 import { Burn, Shrapnel, FastGunner, BullsEye, PowerSurge, FrostVortex, UnstableBomber, Keyword, Bounce, FortressWarfare } from '../pipelines/keyword';
+import { TriggeredEffect, OnKillTrigger, OnHitTrigger, ChanceCondition } from '../models/trigger';
+import { ExplosionEffect, DoTEffect } from '../models/effect';
 
-export function getKeywordInstance(type: string): Keyword {
-    switch (type.toLowerCase()) {
-        case 'burn': return new Burn();
-        case 'shrapnel': return new Shrapnel();
-        case 'fast_gunner': return new FastGunner();
-        case 'bulls_eye': return new BullsEye();
-        case 'power_surge': return new PowerSurge();
-        case 'frost_vortex': return new FrostVortex();
-        case 'unstable_bomber': return new UnstableBomber();
-        case 'bounce': return new Bounce();
-        case 'fortress_warfare': return new FortressWarfare();
-        default: return new Shrapnel(); // Fallback
+export function getKeywordInstance(type: KeywordType): Keyword {
+    switch (type) {
+        case KeywordType.Burn: return new Burn();
+        case KeywordType.Shrapnel: return new Shrapnel();
+        case KeywordType.FastGunner: return new FastGunner();
+        case KeywordType.BullsEye: return new BullsEye();
+        case KeywordType.PowerSurge: return new PowerSurge();
+        case KeywordType.FrostVortex: return new FrostVortex();
+        case KeywordType.UnstableBomber: return new UnstableBomber();
+        case KeywordType.Bounce: return new Bounce();
+        case KeywordType.FortressWarfare: return new FortressWarfare();
+        default: return new Shrapnel();
     }
+}
+
+export interface WeaponBaseStatsData {
+    damagePerProjectile: number;
+    projectilesPerShot: number;
+    fireRate: number;
+    magazineCapacity: number;
+    critRatePercent: number;
+    weakspotDamagePercent: number;
+    critDamagePercent: number;
 }
 
 export interface WeaponData {
@@ -22,14 +34,14 @@ export interface WeaponData {
     name: string;
     type: WeaponType;
     rarity: Rarity;
-    baseStats: any;
+    baseStats: WeaponBaseStatsData;
     keywordType: KeywordType;
     description: string;
 }
 
-export const WEAPON_DB: WeaponData[] = [
-    {
-        id: "de50_jaws",
+export const WEAPONS: Record<WeaponKey, WeaponData> = {
+    [WeaponKey.DE50Jaws]: {
+        id: WeaponKey.DE50Jaws,
         name: "DE.50 - Jaws",
         type: WeaponType.Pistol,
         rarity: Rarity.Legendary,
@@ -45,8 +57,8 @@ export const WEAPON_DB: WeaponData[] = [
         keywordType: KeywordType.UnstableBomber,
         description: "Unstable Bomber and Explosive DMG bonuses"
     },
-    {
-        id: "socr_last_valor",
+    [WeaponKey.SOCRLastValor]: {
+        id: WeaponKey.SOCRLastValor,
         name: "SOCR - The Last Valor",
         type: WeaponType.AssaultRifle,
         rarity: Rarity.Legendary,
@@ -62,10 +74,10 @@ export const WEAPON_DB: WeaponData[] = [
         keywordType: KeywordType.Shrapnel,
         description: "4% base chance to trigger Shrapnel. Critical hits count as two hits."
     },
-    {
-        id: "kvd_boom_boom",
+    [WeaponKey.KVDBoomBoom]: {
+        id: WeaponKey.KVDBoomBoom,
         name: "KVD - Boom Boom",
-        type: WeaponType.Smg, // Reference says SMG, doc says LMG. Using Smg for now as per reference.
+        type: WeaponType.Smg, 
         rarity: Rarity.Legendary,
         baseStats: {
             damagePerProjectile: 32,
@@ -77,10 +89,10 @@ export const WEAPON_DB: WeaponData[] = [
             critDamagePercent: 50,
         },
         keywordType: KeywordType.Burn,
-        description: "18% chance to trigger Burn on hit."
+        description: "18% chance to trigger Burn on hit. Explosion on Kill."
     },
-    {
-        id: "mps5_primal_rage",
+    [WeaponKey.MPS5PrimalRage]: {
+        id: WeaponKey.MPS5PrimalRage,
         name: "MPS5 - Primal Rage",
         type: WeaponType.Smg,
         rarity: Rarity.Legendary,
@@ -96,9 +108,39 @@ export const WEAPON_DB: WeaponData[] = [
         keywordType: KeywordType.FastGunner,
         description: "35% chance to gain Fast Gunner stack on hit."
     }
-];
+};
 
-export function createWeaponFromDb(data: WeaponData, star: number = 1, level: number = 1, calibration: number = 0, mod?: Mod): Weapon {
+/**
+ * Specialized class for KVD Boom Boom to handle its unique interactions.
+ */
+export class KVDBoomBoom extends Weapon {
+    override getTriggeredEffects(): TriggeredEffect[] {
+        const effects = super.getTriggeredEffects();
+        
+        // 1. Explosion on Kill (as per meta research)
+        effects.push(new TriggeredEffect(
+            new OnKillTrigger(),
+            [
+                new ExplosionEffect(3.0, StatType.PsiIntensity, 2, "Blaze Explosion"),
+                new DoTEffect('status-burn', 'Burn', 0.5, 6, 1, StatType.MaxBurnStacks, StatType.BurnDurationPercent)
+            ]
+        ));
+
+        // 2. Pyro Dino Synergy (Sample implementation of "eruptions when attacking burning enemies")
+        effects.push(new TriggeredEffect(
+            new OnHitTrigger(),
+            [new ExplosionEffect(1.0, StatType.PsiIntensity, 1, "Pyro Dino Eruption")],
+            [new ChanceCondition(0.15)] // Sample chance for the extra eruption
+        ));
+
+        return effects;
+    }
+}
+
+export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1, calibration: number = 0, mod?: Mod): Weapon {
+    const data = WEAPONS[key];
+    if (!data) throw new Error(`Weapon ${key} not found`);
+
     const wStats = new WeaponStats();
     wStats.damagePerProjectile.value = data.baseStats.damagePerProjectile;
     wStats.projectilesPerShot.value = data.baseStats.projectilesPerShot;
@@ -108,17 +150,17 @@ export function createWeaponFromDb(data: WeaponData, star: number = 1, level: nu
     wStats.critDamagePercent.value = data.baseStats.critDamagePercent;
     wStats.weakspotDamagePercent.value = data.baseStats.weakspotDamagePercent;
 
+    const keyword = getKeywordInstance(data.keywordType);
+
+    if (key === WeaponKey.KVDBoomBoom) {
+        return new KVDBoomBoom(
+            data.id, data.name, data.rarity, star, level, calibration, mod,
+            data.type, keyword, wStats, []
+        );
+    }
+
     return new Weapon(
-        data.id,
-        data.name,
-        data.rarity,
-        star,
-        level,
-        calibration,
-        mod,
-        data.type,
-        getKeywordInstance(data.keywordType),
-        wStats,
-        [] // TODO: Map intrinsic effects from reference data
+        data.id, data.name, data.rarity, star, level, calibration, mod,
+        data.type, keyword, wStats, [] 
     );
 }

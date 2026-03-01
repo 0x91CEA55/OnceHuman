@@ -48,3 +48,8 @@ coverage/
 
 # MD CSS
 **/obsidian-vscode.css
+# Gemini CLI meta-files
+.gemini/
+GEMINI.md
+.prompts.js
+skills/

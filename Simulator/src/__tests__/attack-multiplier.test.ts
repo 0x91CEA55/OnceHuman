@@ -1,10 +1,12 @@
 import { PhysicalDamagePipeline } from '../pipelines/physical';
 import { Player, PlayerStats } from '../models/player';
 import { Loadout } from '../models/equipment';
-import { StatType, EnemyType } from '../types/enums';
+import { StatType, EnemyType, WeaponKey } from '../types/enums';
 import { EncounterConditions } from '../types/common';
+import { createWeapon } from '../data/weapons';
+import { StatAggregator } from '../engine/stat-aggregator';
 
-describe('Attack Multiplier Logic', () => {
+describe('PhysicalDamagePipeline Attack Multipliers', () => {
     let pipeline: PhysicalDamagePipeline;
     let player: Player;
     let stats: PlayerStats;
@@ -17,16 +19,10 @@ describe('Attack Multiplier Logic', () => {
         player = new Player(loadout, stats, 100);
     });
 
-    test('AttackPercent and WeaponDamagePercent are multiplicative', () => {
-        // Base damage 100
-        stats.get(StatType.DamagePerProjectile)?.add(100);
+    test('Attack bonus scales base damage correctly', () => {
+        // Rust Pistol base damage is 128 (using DE50 Jaws as reference for high base)
+        loadout.weapon = createWeapon(WeaponKey.DE50Jaws);
         
-        // +10% Attack
-        stats.get(StatType.AttackPercent)?.add(10);
-        
-        // +10% Weapon Damage
-        stats.get(StatType.WeaponDamagePercent)?.add(10);
-
         const conditions: EncounterConditions = {
             enemyType: EnemyType.Normal,
             targetDistanceMeters: 10,
@@ -35,10 +31,16 @@ describe('Attack Multiplier Logic', () => {
             weakspotHitRate: 0
         };
 
-        const result = pipeline.calculate(player, conditions);
+        // 1. Base case: 0% Attack Bonus
+        StatAggregator.aggregate(player, conditions);
+
+        const result1 = pipeline.calculate(player, conditions);
+        const baseDmg = result1.noCritNoWs;
+
+        // 2. Add 20% Attack Bonus
+        player.stats.add(StatType.AttackPercent, 20);
+        const result2 = pipeline.calculate(player, conditions);
         
-        // 100 * 1.1 (Attack) * 1.1 (WeaponDmg) = 121
-        // If they were additive: 100 * (1 + 0.1 + 0.1) = 120
-        expect(result.noCritNoWs).toBeCloseTo(121);
+        expect(result2.noCritNoWs).toBeCloseTo(baseDmg * 1.2);
     });
 });

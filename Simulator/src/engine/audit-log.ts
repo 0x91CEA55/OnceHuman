@@ -1,7 +1,7 @@
 export interface AuditEntry {
     category: string;
     label: string;
-    value: any;
+    value: string | number | boolean;
     formula?: string;
     timestamp: number;
 }
@@ -9,7 +9,7 @@ export interface AuditEntry {
 export class AuditLog {
     private entries: AuditEntry[] = [];
 
-    log(category: string, label: string, value: any, formula?: string) {
+    log(category: string, label: string, value: string | number | boolean, formula?: string) {
         this.entries.push({
             category,
             label,

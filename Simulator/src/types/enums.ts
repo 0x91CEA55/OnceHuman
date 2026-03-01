@@ -1,6 +1,39 @@
 export enum WeaponType { Pistol = 'pistol', Shotgun = 'shotgun', Smg = 'smg', AssaultRifle = 'assault_rifle', SniperRifle = 'sniper_rifle', Crossbow = 'crossbow', Launcher = 'launcher' }
 
+export enum WeaponKey {
+    DE50Jaws = 'de50_jaws',
+    SOCRLastValor = 'socr_last_valor',
+    KVDBoomBoom = 'kvd_boom_boom',
+    MPS5PrimalRage = 'mps5_primal_rage'
+}
+
 export enum ArmorSlot { Helmet = 'helmet', Mask = 'mask', Top = 'top', Gloves = 'gloves', Pants = 'pants', Boots = 'boots' }
+
+export enum ArmorKey {
+    LonewolfHood = 'lonewolf_hood',
+    LonewolfMask = 'lonewolf_mask',
+    LonewolfJacket = 'lonewolf_jacket',
+    LonewolfGloves = 'lonewolf_gloves',
+    LonewolfPants = 'lonewolf_pants',
+    LonewolfShoes = 'lonewolf_shoes',
+    Beret = 'beret',
+    OasisMask = 'oasis_mask'
+}
+
+export enum ArmorSetKey {
+    Lonewolf = 'lonewolf_set',
+    Bastille = 'bastille_set'
+}
+
+export enum ModKey {
+    FatefulStrike = 'mod-fateful-strike',
+    DeviationExpert = 'mod-deviation-expert',
+    MomentumUp = 'mod-momentum-up',
+    PreciseStrike = 'mod-precise-strike',
+    FlameResonance = 'mod-flame-resonance',
+    Embers = 'mod-embers'
+}
+
 export enum WeaponSlot { Main = 'weapon_main' }
 export type GearSlot = ArmorSlot | WeaponSlot;
 
@@ -39,10 +72,29 @@ export enum StatType {
     ShrapnelDamagePercent = 'shrapnel_damage_percent',
     UnstableBomberDamagePercent = 'unstable_bomber_damage_percent',
     BounceDamagePercent = 'bounce_damage_percent',
-    BullsEyeDamagePercent = 'bulls_eye_damage_percent'
+    BullsEyeDamagePercent = 'bulls_eye_damage_percent',
+    MaxBurnStacks = 'max_burn_stacks',
+    BurnDurationPercent = 'burn_duration_percent'
 }
 
-export enum EventTrigger { OnHit = 'on_hit', OnCrit = 'on_crit', OnWeakspotHit = 'on_weakspot_hit', OnReload = 'on_reload' }
+export enum DamageTrait {
+    Weapon = 'weapon',
+    Physical = 'physical',
+    Status = 'status',
+    Elemental = 'elemental',
+    Explosive = 'explosive',
+    Melee = 'melee',
+    Burn = 'burn',
+    FrostVortex = 'frost_vortex',
+    PowerSurge = 'power_surge',
+    Shrapnel = 'shrapnel',
+    UnstableBomber = 'unstable_bomber',
+    Bounce = 'bounce',
+    FastGunner = 'fast_gunner',
+    BullsEye = 'bulls_eye'
+}
+
+export enum EventTrigger { OnHit = 'on_hit', OnCrit = 'on_crit', OnWeakspotHit = 'on_weakspot_hit', OnReload = 'on_reload', OnKill = 'on_kill' }
 
 export enum FlagType {
     InfiniteAmmo = 'infinite_ammo',

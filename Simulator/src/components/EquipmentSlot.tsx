@@ -1,18 +1,22 @@
 import React from 'react';
-import { GearSlot } from '../types/enums';
-import { WEAPON_DB } from '../data/weapons';
-import { ARMOR_DB } from '../data/armor';
-import { MOD_DB } from '../data/mods';
+import { GearSlot, ModKey } from '../types/enums';
+import { WEAPONS } from '../data/weapons';
+import { ARMOR } from '../data/armor';
+import { MODS } from '../data/mods';
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ModSubstatSelector } from './ModSubstatSelector';
+import { Substat } from '../models/substat';
 
 interface EquipmentSlotProps {
     label: string;
     slot: GearSlot;
     selectedItemId?: string;
     selectedModId?: string;
+    selectedSubstats?: [Substat, Substat, Substat, Substat];
     onItemSelect: (id: string) => void;
     onModSelect: (id: string) => void;
+    onSubstatChange: (substats: [Substat, Substat, Substat, Substat]) => void;
 }
 
 export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
@@ -20,18 +24,20 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
     slot,
     selectedItemId,
     selectedModId,
+    selectedSubstats,
     onItemSelect,
-    onModSelect
+    onModSelect,
+    onSubstatChange
 }) => {
     // Filter items based on slot
     const items = slot === 'weapon_main' 
-        ? WEAPON_DB 
-        : ARMOR_DB.filter(a => a.slot === slot);
+        ? Object.values(WEAPONS)
+        : Object.values(ARMOR).filter(a => a.slot === slot);
 
     // Filter mods based on slot
-    const mods = MOD_DB.filter(m => m.slot === slot);
+    const mods = Object.values(MODS).filter(m => m.slot === slot);
 
-    const selectedMod = MOD_DB.find(m => m.id === selectedModId);
+    const selectedMod = selectedModId ? MODS[selectedModId as ModKey] : undefined;
 
     return (
         <div className="bg-background/40 border border-primary/5 rounded-md p-3 space-y-3 hover:border-primary/20 transition-colors">
@@ -80,11 +86,19 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
             </div>
 
             {selectedMod && (
-                <div className="pt-2 mt-2 border-t border-primary/5">
-                    <p className="text-[10px] text-primary italic leading-relaxed">
-                        {selectedMod.description}
-                    </p>
-                </div>
+                <>
+                    <div className="pt-2 mt-2 border-t border-primary/5">
+                        <p className="text-[10px] text-primary italic leading-relaxed">
+                            {selectedMod.description}
+                        </p>
+                    </div>
+                    {selectedSubstats && (
+                        <ModSubstatSelector 
+                            substats={selectedSubstats} 
+                            onChange={onSubstatChange} 
+                        />
+                    )}
+                </>
             )}
         </div>
     );

@@ -1,34 +1,35 @@
 import React from 'react';
-import { WEAPON_DB, WeaponData } from '../data/weapons';
+import { WEAPONS, WeaponData } from '../data/weapons';
+import { WeaponKey } from '../types/enums';
 
 interface WeaponSelectorProps {
     selectedWeaponId?: string;
-    onSelect: (weaponData: WeaponData) => void;
+    onWeaponSelect: (weapon: WeaponData) => void;
 }
 
-export const WeaponSelector: React.FC<WeaponSelectorProps> = ({ selectedWeaponId, onSelect }) => {
+export const WeaponSelector: React.FC<WeaponSelectorProps> = ({ selectedWeaponId, onWeaponSelect }) => {
+    const weaponList = Object.values(WEAPONS);
+
     return (
         <div className="weapon-selector">
-            <label htmlFor="weapon-select">Weapon</label>
             <select 
-                id="weapon-select" 
-                value={selectedWeaponId || ''} 
+                value={selectedWeaponId} 
                 onChange={(e) => {
-                    const found = WEAPON_DB.find(w => w.id === e.target.value);
-                    if (found) onSelect(found);
+                    const key = e.target.value as WeaponKey;
+                    const found = WEAPONS[key];
+                    if (found) onWeaponSelect(found);
                 }}
             >
-                <option value="" disabled>Select a weapon...</option>
-                {WEAPON_DB.map(weapon => (
+                <option value="">Select Weapon</option>
+                {weaponList.map(weapon => (
                     <option key={weapon.id} value={weapon.id}>
-                        [{weapon.rarity.toUpperCase()}] {weapon.name}
+                        {weapon.name} ({weapon.type})
                     </option>
                 ))}
             </select>
-            
             {selectedWeaponId && (
-                <div className="selection-details">
-                    <p className="description">{WEAPON_DB.find(w => w.id === selectedWeaponId)?.description}</p>
+                <div className="weapon-info">
+                    <p className="description">{WEAPONS[selectedWeaponId as WeaponKey]?.description}</p>
                 </div>
             )}
         </div>

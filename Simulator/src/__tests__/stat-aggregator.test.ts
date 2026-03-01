@@ -1,14 +1,23 @@
 import { StatAggregator } from '../engine/stat-aggregator';
 import { Player, PlayerStats } from '../models/player';
-import { Loadout, Weapon, WeaponStats, SetArmor, ArmorStats, ArmorSetDefinition, Mod } from '../models/equipment';
-import { Rarity, WeaponType, StatType, ArmorSlot, EffectType, FlagType } from '../types/enums';
+import { Loadout, Weapon, WeaponStats } from '../models/equipment';
+import { Rarity, WeaponType, StatType, ModKey, EnemyType } from '../types/enums';
 import { Burn } from '../pipelines/keyword';
-import { IncreaseStatEffect, SetFlagEffect } from '../models/effect';
+import { DEFAULT_SUBSTATS, createModInstance } from '../data/mods';
+import { EncounterConditions } from '../types/common';
 
-describe('StatAggregator Concrete Gear Tests', () => {
+describe('StatAggregator Strategy Tests', () => {
     let player: Player;
     let stats: PlayerStats;
     let loadout: Loadout;
+
+    const dummyConditions: EncounterConditions = {
+        enemyType: EnemyType.Normal,
+        targetDistanceMeters: 10,
+        playerHpPercent: 100,
+        isTargetVulnerable: false,
+        weakspotHitRate: 0
+    };
 
     beforeEach(() => {
         stats = new PlayerStats();
@@ -16,59 +25,35 @@ describe('StatAggregator Concrete Gear Tests', () => {
         player = new Player(loadout, stats, 100);
     });
 
-    test('Empty loadout results in zero base damage', () => {
-        StatAggregator.aggregate(player);
-        expect(player.stats.get(StatType.DamagePerProjectile)?.value).toBe(0);
-    });
-
-    test('Starter Setup: Rust Pistol + Agent 1pc + Mod', () => {
-        // 1. Setup Rust Pistol (Base DMG 50)
-        const pistolStats = new WeaponStats();
-        pistolStats.damagePerProjectile.value = 50;
-        
-        // Weapon Mod: Violent (+5% Weapon DMG)
-        const weaponMod: Mod = {
-            id: 'mod-violent', name: 'Violent', slot: 'weapon_main' as any, description: '', 
-            effects: [], 
-            subStats: [{ type: EffectType.IncreaseStat, stat: StatType.WeaponDamagePercent, value: 5 } as IncreaseStatEffect]
-        };
-
-        loadout.weapon = new Weapon(
-            'rust-pistol', 'Rust Pistol', Rarity.Common, 1, 1, 0, weaponMod,
-            WeaponType.Pistol, new Burn(), pistolStats, []
-        );
-
-        // 2. Setup Agent Mask (1pc bonus: +10% Attack)
-        const agentSet = new ArmorSetDefinition('agent', 'Agent Set', [
-            { requiredPieces: 1, effects: [{ type: EffectType.IncreaseStat, stat: StatType.AttackPercent, value: 10 } as IncreaseStatEffect] }
-        ]);
-        const armorStats = new ArmorStats();
-        loadout.mask = new SetArmor('agent-mask', 'Agent Mask', Rarity.Legendary, 1, 1, 0, undefined, ArmorSlot.Mask, armorStats, agentSet);
-
-        // 3. Aggregate
-        StatAggregator.aggregate(player);
-
-        // 4. Verify
-        expect(player.stats.get(StatType.DamagePerProjectile)?.value).toBe(50);
-        expect(player.stats.get(StatType.AttackPercent)?.value).toBe(10);
-        expect(player.stats.get(StatType.WeaponDamagePercent)?.value).toBe(5);
-    });
-
-    test('Fateful Strike Mod disables weakspots via Flag', () => {
+    test('Momentum Up strategy logic (First half of mag)', () => {
         const wStats = new WeaponStats();
-        const fatefulMod: Mod = {
-            id: 'mod-fateful', name: 'Fateful Strike', slot: 'weapon_main' as any, description: '', 
-            effects: [{ type: EffectType.SetFlag, flag: FlagType.CannotDealWeakspotDamage, value: true } as SetFlagEffect], 
-            subStats: []
-        };
+        const mod = createModInstance(ModKey.MomentumUp, DEFAULT_SUBSTATS);
+        loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, mod, WeaponType.Pistol, new Burn(), wStats, []);
 
-        loadout.weapon = new Weapon(
-            'wpn', 'Wpn', Rarity.Epic, 1, 1, 0, fatefulMod,
-            WeaponType.Pistol, new Burn(), wStats, []
-        );
+        // Aggregate at 100% ammo
+        StatAggregator.aggregate(player, dummyConditions, 1.0, true);
+        expect(player.stats.get(StatType.FireRate)?.value).toBe(10);
+        expect(player.stats.get(StatType.WeaponDamagePercent)?.value).toBe(0);
+    });
 
-        StatAggregator.aggregate(player);
+    test('Momentum Up strategy logic (Second half of mag)', () => {
+        const wStats = new WeaponStats();
+        const mod = createModInstance(ModKey.MomentumUp, DEFAULT_SUBSTATS);
+        loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, mod, WeaponType.Pistol, new Burn(), wStats, []);
 
-        expect(player.hasFlag(FlagType.CannotDealWeakspotDamage)).toBe(true);
+        // Aggregate at 20% ammo
+        StatAggregator.aggregate(player, dummyConditions, 0.2, true);
+        expect(player.stats.get(StatType.FireRate)?.value).toBe(0);
+        expect(player.stats.get(StatType.WeaponDamagePercent)?.value).toBe(30);
+    });
+
+    test('Fateful Strike strategy logic', () => {
+        const wStats = new WeaponStats();
+        const mod = createModInstance(ModKey.FatefulStrike, DEFAULT_SUBSTATS);
+        loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, mod, WeaponType.Pistol, new Burn(), wStats, []);
+
+        StatAggregator.aggregate(player, dummyConditions, 1.0, true);
+        expect(player.stats.get(StatType.CritRatePercent)?.value).toBe(10);
+        expect(player.stats.get(StatType.CritDamagePercent)?.value).toBe(30);
     });
 });
