@@ -26,3 +26,4 @@ jobs:
         with:
           folder: Simulator/dist
           branch: gh-pages
+          clean: true
