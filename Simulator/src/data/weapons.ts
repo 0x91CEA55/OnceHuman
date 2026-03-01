@@ -1,4 +1,4 @@
-import { WeaponType, Rarity, KeywordType, WeaponKey, StatType } from '../types/enums';
+import { WeaponType, Rarity, KeywordType, WeaponKey, StatType, DamageTrait } from '../types/enums';
 import { Weapon, WeaponStats, Mod } from '../models/equipment';
 import { Burn, Shrapnel, FastGunner, BullsEye, PowerSurge, FrostVortex, UnstableBomber, Keyword, Bounce, FortressWarfare } from '../pipelines/keyword';
 import { TriggeredEffect, OnKillTrigger, OnHitTrigger, ChanceCondition } from '../models/trigger';
@@ -122,7 +122,7 @@ export class KVDBoomBoom extends Weapon {
             new OnKillTrigger(),
             [
                 new ExplosionEffect(3.0, StatType.PsiIntensity, 2, "Blaze Explosion"),
-                new DoTEffect('status-burn', 'Burn', 0.5, 6, 1, StatType.MaxBurnStacks, StatType.BurnDurationPercent)
+                new DoTEffect('status-burn', 'Burn', 0.5, 6, 1, 0.12, StatType.PsiIntensity, DamageTrait.Burn, StatType.MaxBurnStacks, StatType.BurnDurationPercent)
             ]
         ));
 

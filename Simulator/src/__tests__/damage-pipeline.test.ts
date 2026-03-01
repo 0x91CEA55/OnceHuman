@@ -1,7 +1,7 @@
 import { PhysicalDamagePipeline } from '../pipelines/physical';
 import { Player, PlayerStats } from '../models/player';
 import { Loadout, Weapon, WeaponStats } from '../models/equipment';
-import { EnemyType, Rarity, WeaponType, ModKey } from '../types/enums';
+import { EnemyType, Rarity, WeaponType, ModKey, EncounterTopology } from '../types/enums';
 import { EncounterConditions } from '../types/common';
 import { StatAggregator } from '../engine/stat-aggregator';
 import { Burn } from '../pipelines/keyword';
@@ -32,7 +32,8 @@ describe('PhysicalDamagePipeline Strategy Verification', () => {
             targetDistanceMeters: 10,
             playerHpPercent: 100,
             isTargetVulnerable: false,
-            weakspotHitRate: 0
+            weakspotHitRate: 0,
+            topology: EncounterTopology.SingleTarget
         };
 
         // 1. First half of mag (Should have +10% Fire Rate, 0% Weapon DMG)
@@ -59,7 +60,8 @@ describe('PhysicalDamagePipeline Strategy Verification', () => {
             targetDistanceMeters: 10,
             playerHpPercent: 100,
             isTargetVulnerable: false,
-            weakspotHitRate: 1.0
+            weakspotHitRate: 1.0,
+            topology: EncounterTopology.SingleTarget
         };
 
         StatAggregator.aggregate(player, conditions, 1.0, true);

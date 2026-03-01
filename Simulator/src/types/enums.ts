@@ -41,6 +41,12 @@ export enum Rarity { Common = 'common', Fine = 'fine', Epic = 'epic', Legendary 
 
 export enum EnemyType { Normal = 'normal', Elite = 'elite', Boss = 'boss' }
 
+export enum EncounterTopology {
+    SingleTarget = 'single_target',
+    Horde = 'horde',
+    DuoElites = 'duo_elites'
+}
+
 export enum KeywordType { Burn = 'burn', FrostVortex = 'frost_vortex', PowerSurge = 'power_surge', Shrapnel = 'shrapnel', FastGunner = 'fast_gunner', UnstableBomber = 'unstable_bomber', BullsEye = 'bulls_eye', FortressWarfare = 'fortress_warfare', Bounce = 'bounce' }
 
 export enum EffectType { IncreaseStat = 'increase_stat', SetFlag = 'set_flag', OnEvent = 'on_event', ConditionalEffect = 'conditional_effect' }
@@ -79,7 +85,7 @@ export enum StatType {
 
 export enum DamageTrait {
     Weapon = 'weapon',
-    Physical = 'physical',
+    Attack = 'attack',
     Status = 'status',
     Elemental = 'elemental',
     Explosive = 'explosive',

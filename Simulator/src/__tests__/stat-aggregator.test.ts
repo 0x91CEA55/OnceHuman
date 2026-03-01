@@ -1,7 +1,7 @@
 import { StatAggregator } from '../engine/stat-aggregator';
 import { Player, PlayerStats } from '../models/player';
 import { Loadout, Weapon, WeaponStats } from '../models/equipment';
-import { Rarity, WeaponType, StatType, ModKey, EnemyType } from '../types/enums';
+import { Rarity, WeaponType, StatType, ModKey, EnemyType, EncounterTopology } from '../types/enums';
 import { Burn } from '../pipelines/keyword';
 import { DEFAULT_SUBSTATS, createModInstance } from '../data/mods';
 import { EncounterConditions } from '../types/common';
@@ -16,7 +16,8 @@ describe('StatAggregator Strategy Tests', () => {
         targetDistanceMeters: 10,
         playerHpPercent: 100,
         isTargetVulnerable: false,
-        weakspotHitRate: 0
+        weakspotHitRate: 0,
+        topology: EncounterTopology.SingleTarget
     };
 
     beforeEach(() => {

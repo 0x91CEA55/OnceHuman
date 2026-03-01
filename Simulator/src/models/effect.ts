@@ -5,6 +5,7 @@ import { StatType, FlagType } from '../types/enums';
 import { Player } from './player';
 import { EncounterConditions, CombatEvent } from '../types/common';
 import { StatusManager } from '../engine/status-manager';
+import { Entity } from './entity';
 
 /**
  * CombatState tracks transient, dynamic state during a simulation.
@@ -33,11 +34,12 @@ export interface CombatContext {
     player: Player;
     conditions: EncounterConditions;
     currentTime: number;
-    recordDamage: (amount: number, source: string) => void;
+    recordDamage: (amount: number, source: string, intent?: DamageIntent) => void;
     logEvent: (event: string, description: string) => void;
     statusManager: StatusManager;
     state: CombatState;
     eventBus: any; // Using any to avoid circular dependency for now, or import type
+    getNearbyTargets: (target: Entity, radius: number) => Entity[];
 }
 
 export abstract class BaseEffect {
@@ -147,28 +149,31 @@ export class ExplosionEffect extends BaseEffect {
         const baseStat = ctx.player.stats.get(this.statType)?.value ?? 0;
         const rawDamage = baseStat * this.scalingFactor;
         
-        // Use DamageIntent for explosions
-        const target = event?.targetEntityId ? { id: event.targetEntityId, hp: 99999, takeDamage: () => {}, isDead: () => false, statusManager: ctx.statusManager } as any : { id: 'unknown', hp: 99999, takeDamage: () => {}, isDead: () => false, statusManager: ctx.statusManager } as any;
-
-        const intent = new DamageIntent(rawDamage, ctx.player, target, true, 0.0, this.source || 'Explosion')
-            .addTrait(DamageTrait.Explosive)
-            .addTrait(DamageTrait.Status)
-            .addTrait(DamageTrait.Elemental);
-
-        const damage = this.processor.resolve(intent);
-
-        ctx.recordDamage(damage, this.source || 'Explosion');
+        // Explosion is AoE: hits main target AND nearby targets
+        const mainTarget = (event as any)?.target || { id: 'unknown', hp: 99999, takeDamage: () => {}, isDead: () => false, statusManager: ctx.statusManager };
+        const otherTargets = ctx.getNearbyTargets(mainTarget, 5); // 5m radius standard
         
-        // We emit to eventBus if we have access to it, for proc gating
-        if (ctx.eventBus) {
-            ctx.eventBus.emit({
-                type: EventTrigger.OnHit,
-                source: ctx.player,
-                target: target,
-                intent: intent,
-                damage: damage,
-                depth: 0 // Should be derived from original event, but keep simple for now
-            });
+        const allTargets = [mainTarget, ...otherTargets];
+
+        for (const target of allTargets) {
+            const intent = new DamageIntent(rawDamage, ctx.player, target, true, 0.0, this.source || 'Explosion')
+                .addTrait(DamageTrait.Explosive)
+                .addTrait(DamageTrait.Status)
+                .addTrait(DamageTrait.Elemental);
+
+            const damage = this.processor.resolve(intent);
+            ctx.recordDamage(damage, this.source || 'Explosion', intent);
+            
+            if (ctx.eventBus) {
+                ctx.eventBus.emit({
+                    type: EventTrigger.OnHit,
+                    source: ctx.player,
+                    target: target,
+                    intent: intent,
+                    damage: damage,
+                    depth: 0 
+                });
+            }
         }
 
         if (this.cooldownSeconds > 0) {
@@ -220,6 +225,9 @@ export class DoTEffect extends BaseEffect {
         public readonly tickInterval: number,
         public readonly durationSeconds: number,
         public readonly maxStacks: number,
+        public readonly scalingFactor: number,
+        public readonly baseStatType: StatType,
+        public readonly trait: DamageTrait,
         public readonly maxStacksStat?: StatType,
         public readonly durationStat?: StatType,
         source?: string
@@ -251,19 +259,34 @@ export class DoTEffect extends BaseEffect {
     }
 
     clone(newSource?: string): DoTEffect {
-        return new DoTEffect(this.id, this.name, this.tickInterval, this.durationSeconds, this.maxStacks, this.maxStacksStat, this.durationStat, newSource ?? this.source);
+        return new DoTEffect(this.id, this.name, this.tickInterval, this.durationSeconds, this.maxStacks, this.scalingFactor, this.baseStatType, this.trait, this.maxStacksStat, this.durationStat, newSource ?? this.source);
     }
 }
 
-export class ActiveBuff {
+export abstract class StatusInstance {
     public currentStacks: number = 1;
     public remainingDuration: number;
 
     constructor(
-        public readonly definition: BuffEffect,
+        public readonly definition: BaseEffect & { id: string, name: string, durationSeconds: number, maxStacks: number },
         public readonly isPermanent: boolean = false
     ) {
         this.remainingDuration = definition.durationSeconds;
+    }
+
+    abstract onApply(ctx: CombatContext): void;
+    abstract onTick(ctx: CombatContext): void;
+    abstract onExpire(ctx: CombatContext): void;
+    abstract onRemoved(ctx: CombatContext): void;
+
+    canStackWith(other: StatusInstance): boolean {
+        return this.definition.id === other.definition.id;
+    }
+
+    onStackAdded(incoming: StatusInstance, ctx: CombatContext): void {
+        this.currentStacks = Math.min(this.definition.maxStacks, this.currentStacks + incoming.currentStacks);
+        this.remainingDuration = this.definition.durationSeconds;
+        ctx.logEvent('Status Stack', `${this.definition.name} (${this.currentStacks}x)`);
     }
 
     tick(deltaTime: number): void {
@@ -273,45 +296,88 @@ export class ActiveBuff {
     isExpired(): boolean {
         return !this.isPermanent && this.remainingDuration <= 0;
     }
+}
 
-    addStack(): void {
-        this.currentStacks = Math.min(this.definition.maxStacks, this.currentStacks + 1);
-        this.remainingDuration = this.definition.durationSeconds; 
+export class ActiveBuff extends StatusInstance {
+    constructor(
+        public readonly definition: BuffEffect,
+        isPermanent: boolean = false
+    ) {
+        super(definition, isPermanent);
+    }
+
+    onApply(ctx: CombatContext): void {
+        ctx.logEvent('Buff Gained', this.definition.name);
+    }
+
+    onTick(_ctx: CombatContext): void {}
+
+    onExpire(ctx: CombatContext): void {
+        ctx.logEvent('Buff Expired', this.definition.name);
+    }
+
+    onRemoved(ctx: CombatContext): void {
+        ctx.logEvent('Buff Removed', this.definition.name);
     }
 }
 
-export class ActiveDoT {
-    public currentStacks: number = 1;
-    public remainingDuration: number;
+export class ActiveDoT extends StatusInstance {
     public nextTickTime: number;
+    public maxStacks: number;
+    public duration: number;
+    private processor = new DamageProcessor();
 
     constructor(
         public readonly definition: DoTEffect,
         startTime: number,
-        public maxStacks: number,
-        public duration: number
+        maxStacks: number,
+        duration: number
     ) {
+        super(definition, false);
+        this.maxStacks = maxStacks;
+        this.duration = duration;
         this.remainingDuration = duration;
         this.nextTickTime = startTime + definition.tickInterval;
     }
 
-    tick(currentTime: number, dt: number): boolean {
-        this.remainingDuration -= dt;
+    onApply(ctx: CombatContext): void {
+        ctx.logEvent('DoT Gained', this.definition.name);
+    }
+
+    onTick(ctx: CombatContext): void {
+        const baseVal = (ctx.player.stats.get(this.definition.baseStatType)?.value ?? 0) * this.definition.scalingFactor;
+        
+        const intent = new DamageIntent(baseVal, ctx.player, ctx.statusManager.owner, true, 1.0, `${this.definition.name} Tick`)
+            .addTrait(DamageTrait.Status)
+            .addTrait(DamageTrait.Elemental)
+            .addTrait(this.definition.trait);
+
+        const finalDamage = this.processor.resolve(intent) * this.currentStacks;
+        ctx.recordDamage(finalDamage, `${this.definition.name} Tick`, intent);
+    }
+
+    onExpire(ctx: CombatContext): void {
+        ctx.logEvent('DoT Expired', this.definition.name);
+    }
+
+    onRemoved(ctx: CombatContext): void {
+        ctx.logEvent('DoT Removed', this.definition.name);
+    }
+
+    override onStackAdded(incoming: ActiveDoT, ctx: CombatContext): void {
+        this.maxStacks = incoming.maxStacks;
+        this.duration = incoming.duration;
+        this.currentStacks = Math.min(this.maxStacks, this.currentStacks + incoming.currentStacks);
+        this.remainingDuration = this.duration;
+        ctx.logEvent('DoT Stack', `${this.definition.name} (${this.currentStacks}x)`);
+    }
+
+    tickWithDamage(currentTime: number, dt: number): boolean {
+        super.tick(dt);
         if (currentTime >= this.nextTickTime) {
             this.nextTickTime += this.definition.tickInterval;
             return true;
         }
         return false;
-    }
-
-    isExpired(): boolean {
-        return this.remainingDuration <= 0;
-    }
-
-    addStack(maxStacks: number, duration: number): void {
-        this.maxStacks = maxStacks;
-        this.duration = duration;
-        this.currentStacks = Math.min(this.maxStacks, this.currentStacks + 1);
-        this.remainingDuration = this.duration;
     }
 }

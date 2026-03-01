@@ -10,7 +10,8 @@ export interface DamageBehavior {
 }
 
 export class DamageIntent {
-    private multipliers: number[] = [];
+    // Multipliers tracked by category for UI visualization
+    public bucketMultipliers: Record<string, number> = {};
     private traits: Set<DamageTrait> = new Set();
     public behavior: DamageBehavior = {
         canCrit: false,
@@ -42,8 +43,15 @@ export class DamageIntent {
         return Array.from(this.traits);
     }
 
-    addMultiplier(value: number) {
-        this.multipliers.push(value);
+    /**
+     * Adds a multiplier to a specific bucket (e.g., 'status', 'crit').
+     * If the bucket exists, it multiplies the value (multiplicative across buckets).
+     */
+    addMultiplier(value: number, bucket: string = 'generic') {
+        if (!this.bucketMultipliers[bucket]) {
+            this.bucketMultipliers[bucket] = 1.0;
+        }
+        this.bucketMultipliers[bucket] *= value;
         return this;
     }
 
@@ -61,6 +69,8 @@ export class DamageIntent {
     }
 
     resolve(): number {
-        return this.baseValue * this.multipliers.reduce((acc, m) => acc * m, 1);
+        // Resolve all buckets multiplicatively
+        const totalMultiplier = Object.values(this.bucketMultipliers).reduce((acc, m) => acc * m, 1);
+        return this.baseValue * totalMultiplier;
     }
 }

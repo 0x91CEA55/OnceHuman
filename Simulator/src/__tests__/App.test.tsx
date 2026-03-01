@@ -28,12 +28,13 @@ describe('App Component Smoke Test', () => {
 
     test('renders the encounter setup card', () => {
         render(<App />);
-        // Use getAllByText because it might appear in title and description
-        expect(screen.getAllByText(/ENCOUNTER CONFIG/i).length).toBeGreaterThan(0);
+        // New diegetic label is "01. Encounter"
+        expect(screen.getAllByText(/01. Encounter/i).length).toBeGreaterThan(0);
     });
 
     test('renders the loadout planner', () => {
         render(<App />);
-        expect(screen.getAllByText(/LOADOUT PLANNER/i).length).toBeGreaterThan(0);
+        // New diegetic label is "02. Loadout"
+        expect(screen.getAllByText(/02. Loadout/i).length).toBeGreaterThan(0);
     });
 });

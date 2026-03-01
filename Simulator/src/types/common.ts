@@ -1,4 +1,4 @@
-import { EnemyType } from './enums';
+import { EnemyType, EncounterTopology } from './enums';
 
 export class EncounterConditions {
     constructor(
@@ -6,7 +6,8 @@ export class EncounterConditions {
         public targetDistanceMeters: number = 10,
         public playerHpPercent: number = 100,
         public isTargetVulnerable: boolean = false,
-        public weakspotHitRate: number = 0.5
+        public weakspotHitRate: number = 0.5,
+        public topology: EncounterTopology = EncounterTopology.SingleTarget
     ) {}
 }
 

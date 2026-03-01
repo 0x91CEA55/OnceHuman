@@ -53,3 +53,6 @@ coverage/
 GEMINI.md
 .prompts.js
 skills/
+Simulator/img/
+research/*/
+*.skill

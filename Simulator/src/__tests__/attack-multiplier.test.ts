@@ -1,7 +1,7 @@
 import { PhysicalDamagePipeline } from '../pipelines/physical';
 import { Player, PlayerStats } from '../models/player';
 import { Loadout } from '../models/equipment';
-import { StatType, EnemyType, WeaponKey } from '../types/enums';
+import { StatType, EnemyType, WeaponKey, EncounterTopology } from '../types/enums';
 import { EncounterConditions } from '../types/common';
 import { createWeapon } from '../data/weapons';
 import { StatAggregator } from '../engine/stat-aggregator';
@@ -28,7 +28,8 @@ describe('PhysicalDamagePipeline Attack Multipliers', () => {
             targetDistanceMeters: 10,
             playerHpPercent: 100,
             isTargetVulnerable: false,
-            weakspotHitRate: 0
+            weakspotHitRate: 0,
+            topology: EncounterTopology.SingleTarget
         };
 
         // 1. Base case: 0% Attack Bonus

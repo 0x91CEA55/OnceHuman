@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
+    --background: 240 10% 2%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
@@ -23,7 +23,7 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 199 100% 65%;
-    --radius: 0.3rem;
+    --radius: 0.1rem; /* Sharp technical corners */
   }
 }
 
@@ -32,23 +32,70 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image: 
+        radial-gradient(circle at 50% 50%, rgba(77, 184, 255, 0.05) 0%, transparent 80%),
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), 
+        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    background-size: 100% 100%, 100% 4px, 3px 100%;
+    position: relative;
   }
+
+  /* The CRT Overlay */
+  body::before {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), rgba(18, 16, 16, 0);
+    background-size: 100% 2px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.3;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-[0.2em] font-black uppercase italic;
+    text-shadow: 0 0 10px rgba(77, 184, 255, 0.3);
+  }
+}
+
+/* Diegetic Animations */
+@keyframes flicker {
+  0% { opacity: 0.97; }
+  5% { opacity: 0.95; }
+  10% { opacity: 0.9; }
+  15% { opacity: 0.98; }
+  30% { opacity: 0.95; }
+  50% { opacity: 0.99; }
+  100% { opacity: 1; }
+}
+
+.animate-flicker {
+  animation: flicker 0.15s infinite;
 }
 
 /* Custom Once Human Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: rgba(0,0,0,0.3);
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 4px;
+  background: rgba(77, 184, 255, 0.2);
+  border-radius: 0px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.5);
+  background: rgba(77, 184, 255, 0.5);
+}
+
+/* 2090 Micro-Type */
+.text-micro {
+    font-size: 0.6rem;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    font-weight: 900;
 }

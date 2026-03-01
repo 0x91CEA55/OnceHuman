@@ -14,8 +14,9 @@ describe('StatusHUD Component', () => {
         
         expect(screen.getByText(/MOMENTUM UP/i)).toBeInTheDocument();
         expect(screen.getByText(/BURN/i)).toBeInTheDocument();
-        expect(screen.getByText('5')).toBeInTheDocument();
-        expect(screen.getByText('0.50s')).toBeInTheDocument(); // Next tick
+        // High density uses 0-padding
+        expect(screen.getByText('05')).toBeInTheDocument();
+        expect(screen.getByText('0.50Hz')).toBeInTheDocument(); // Next tick / Frequency
     });
 
     test('renders nothing when no statuses are provided', () => {

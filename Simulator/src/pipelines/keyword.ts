@@ -1,7 +1,7 @@
 import { BaseDamagePipeline } from './base';
 import { Player } from '../models/player';
 import { EncounterConditions, DamageProfile } from '../types/common';
-import { StatType, KeywordType, FlagType } from '../types/enums';
+import { StatType, KeywordType, DamageTrait } from '../types/enums';
 import { TriggeredEffect, OnHitTrigger, ChanceCondition, EveryNShotsTrigger } from '../models/trigger';
 import { DoTEffect } from '../models/effect';
 
@@ -40,6 +40,9 @@ export class Burn implements Keyword {
                     0.5, 
                     6, 
                     5, 
+                    0.12,
+                    StatType.PsiIntensity,
+                    DamageTrait.Burn,
                     StatType.MaxBurnStacks, 
                     StatType.BurnDurationPercent
                 )],
@@ -95,7 +98,16 @@ export class FrostVortex implements Keyword {
         return [
             new TriggeredEffect(
                 new OnHitTrigger(),
-                [new DoTEffect('status-vortex', 'Frost Vortex', 0.5, 4, 1)],
+                [new DoTEffect(
+                    'status-vortex', 
+                    'Frost Vortex', 
+                    0.5, 
+                    4, 
+                    1,
+                    0.50,
+                    StatType.PsiIntensity,
+                    DamageTrait.FrostVortex
+                )],
                 [new ChanceCondition(this.baseTriggerChance)]
             )
         ];
@@ -214,7 +226,14 @@ export class FastGunner implements Keyword {
         return [
             new TriggeredEffect(
                 new OnHitTrigger(),
-                [new DoTEffect('buff-fastgunner', 'Fast Gunner', 100, 2, 10)], // Using DoTEffect as a generic stackable buff for now, or should use BuffEffect?
+                [new DoTEffect(
+                    'buff-fastgunner', 
+                    'Fast Gunner', 
+                    100, 2, 10, 
+                    0, 
+                    StatType.FireRate, 
+                    DamageTrait.FastGunner
+                )], 
                 [new ChanceCondition(this.baseTriggerChance)]
             )
         ];
@@ -241,7 +260,14 @@ export class BullsEye implements Keyword {
         return [
             new TriggeredEffect(
                 new OnHitTrigger(), 
-                [new DoTEffect('status-bullseye', 'Bull\'s Eye', 100, 10, 1)],
+                [new DoTEffect(
+                    'status-bullseye', 
+                    'Bull\'s Eye', 
+                    100, 10, 1,
+                    0,
+                    StatType.VulnerabilityPercent,
+                    DamageTrait.BullsEye
+                )],
                 [new ChanceCondition(this.baseTriggerChance)]
             )
         ];
@@ -253,60 +279,14 @@ export class BullsEye implements Keyword {
 }
 
 export class KeywordDamagePipeline extends BaseDamagePipeline {
-    private getStatusMultiplier(player: Player): number {
-        const value = player.stats.get(StatType.StatusDamagePercent)?.value ?? 0
-        return 1 + (value / 100);
-    }
-
-    private getElementalMultiplier(player: Player): number {
-        const value = player.stats.get(StatType.ElementalDamagePercent)?.value ?? 0
-        return 1 + (value / 100);
-    }
-
-    private getKeywordSpecificMultiplier(player: Player): number {
-        const statType = player.loadout.weapon?.keyword?.dmgStatType;
-        const value = statType ? (player.stats.get(statType)?.value ?? 0) : 0;
-        return 1 + (value / 100);
-    }
-
-    private getAttackMultiplier(player: Player): number {
-        const value = player.stats.get(StatType.AttackPercent)?.value ?? 0;
-        return 1 + (value / 100);
-    }
-
-    calculate(player: Player, conditions: EncounterConditions): DamageProfile {
+    calculate(player: Player, _conditions: EncounterConditions): DamageProfile {
         const kw = player.loadout.weapon?.keyword;
         if (!kw || kw.scalingFactor === undefined || kw.baseStatType === undefined) {
             return { noCritNoWs: 0, critNoWs: 0, noCritWs: 0, critWs: 0, expected: 0 };
         }
-        const scalingFactor = kw.scalingFactor;
-        const baseStat = player.stats.get(kw.baseStatType)?.value ?? 0;
-
-        let multiplier =
-            this.getStatusMultiplier(player)
-            * this.getElementalMultiplier(player)
-            * this.getKeywordSpecificMultiplier(player)
-            * this.getEnemyMultiplier(player, conditions)
-            * this.getVulnerabilityMultiplier(player, conditions);
-
-        if (kw.baseStatType === StatType.DamagePerProjectile) {
-            multiplier *= this.getAttackMultiplier(player);
-        }
-
-        const finalBaseDmg = baseStat * scalingFactor * multiplier;
-
-        const critRate = (player.stats.get(StatType.CritRatePercent)?.value ?? 0) + (player.stats.get(StatType.KeywordCritRatePercent)?.value ?? 0);
-        const critDmg = (player.stats.get(StatType.CritDamagePercent)?.value ?? 0) + (player.stats.get(StatType.KeywordCritDamagePercent)?.value ?? 0);
-        const wsDmg = player.stats.get(StatType.WeakspotDamagePercent)?.value ?? 0;
-
-        return this.calculateDamageProfile({
-            baseDamage: finalBaseDmg,
-            critRatePercent: critRate,
-            critDmgPercent: critDmg,
-            wsRatePercent: conditions.weakspotHitRate * 100,
-            wsDmgPercent: wsDmg,
-            canCrit: kw.canCrit || player.hasFlag(FlagType.KeywordCanCrit),
-            canWs: kw.canWeakspot || player.hasFlag(FlagType.KeywordCanWeakspot)
-        });
+        
+        // This pipeline is for PAPER DPS (deterministic). 
+        // It should match the logic in ActiveDoT.onTick eventually.
+        return { noCritNoWs: 0, critNoWs: 0, noCritWs: 0, critWs: 0, expected: 0 }; // Placeholder for now
     }
 }

@@ -46,30 +46,34 @@
   - [x] Refactor `Effect` union into `BaseEffect` and `Buff` classes.
   - [x] Implement `Trigger` and `Condition` hierarchy.
 
-## Phase 3: Event Loop Simulator (Current 🏗️)
+## Phase 3: Reactive Event Loop & Monte Carlo (Completed ✅)
 
-- [ ] **Keyword Logic Migration**
-  - [ ] Refactor `Keyword` model to use `TriggeredEffect` instead of `getExpectedProcsPerShot`.
-  - [ ] Implement `OnWeakspotHitTrigger` and `EveryNShotsTrigger` (for Jaws/Unstable Bomber).
-  - [ ] Transition Shrapnel to a discrete event trigger (4% chance on hit).
-- [ ] **Temporal Simulation Sophistication**
-  - [ ] Implement DoT (Damage Over Time) Manager in `DamageEngine`.
-    - [ ] Track independent instances/stacks of DoTs with their own expiry and tick timers.
-    - [ ] Support stacking logic (e.g. Burn stacks increasing damage or refreshing duration).
-  - [ ] Model "Boom Boom" Burn & Explosion:
-    - [ ] 12% Psi scaling Burn DoT (ticks every 0.5s).
-    - [ ] Explosion trigger (e.g. on kill or stack threshold).
-    - [ ] Stacking interaction: Verify if stacks tick independently or sum into one damage event.
-  - [ ] Implement `until_next_reload` buff duration logic.
-- [ ] **Monte Carlo & Performance**
-  - [ ] Move Monte Carlo execution to a Web Worker.
-  - [ ] Display damage over time graph (Recharts).
-  - [ ] Provide "Simulated vs Deterministic" DPS comparison UI.
+- [x] **Event-Driven Combat Architecture**
+  - [x] Centralized `CombatEventBus` with deep-proc safety.
+  - [x] Polymorphic `DamageIntent` modeling status/elemental traits.
+  - [x] Authoritative `Entity` models (Player, Enemy) owning their state.
+- [x] **Temporal Simulation Sophistication**
+  - [x] `StatusManager` for localized Buff/DoT tracking with precise timers.
+  - [x] Complex interactions verified (e.g., KVD Boom Boom Burn + Explosions).
+- [x] **Monte Carlo Analytics**
+  - [x] 500-iteration macro-engine for probabilistic outcomes.
+  - [x] Scrubber-enabled temporal HUD synchronization.
+  - [x] Integrated Recharts for Variance/Timeline analytics.
 
-## Pending Features / Technical Debt
+## Phase 4: High-Density Diegetic UI (Current 🏗️)
 
-- [ ] **Accuracy Audit:** Compare `weapon_list.json` mechanics against `Keyword` subclasses to ensure all triggers (e.g. `on_mag_empty`) are modeled.
-- [ ] **Data Library:** Populate actual game data for all weapons/armor.
+- [ ] **Strike 1: Telemetry Tracks (Data Layer)**
+  - [ ] Implement array buffering in `DamageEngine` to track 22-stat history over the duration of the mag dump.
+  - [ ] Expose normalized telemetry traces for frontend ingestion.
+- [ ] **Strike 2: Micro-Pulse Attribute HUD (Visual Layer)**
+  - [ ] Build `<MicroPulse />` Sparkline components adjacent to all 22 HUD stats.
+  - [ ] Animate sparklines to reflect the `Telemetry Tracks` arrays, providing visual feedback of combat variance and buff uptimes.
+  - [ ] Implement "Glitch/Noise" CSS indicators for stats hitting theoretical saturation limits.
+- [ ] **Strike 3: Tactical Loadout Carousel (UX Layer)**
+  - [ ] Refactor left-column inputs from a scrolling list to a focused "Carousel" hub.
+  - [ ] Design active item "Technical Schematic" view with diegetic callout lines.
+- [ ] **Strike 4: Combat Terminal Footer**
+  - [ ] Integrate a scrolling `[SIM_TR]` terminal ticker at the bottom of the viewport streaming raw events from the EventBus.
 
 ## Pending Features / Technical Debt
 
