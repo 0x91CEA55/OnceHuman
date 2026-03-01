@@ -14,7 +14,6 @@ secrets/
 *.key
 
 # Claude Code artifacts
-.claude/
 .history/
 .plans/
 claude-mcp*.txt
@@ -49,3 +48,11 @@ coverage/
 
 # MD CSS
 **/obsidian-vscode.css
+# Gemini CLI meta-files
+.gemini/
+GEMINI.md
+.prompts.js
+skills/
+Simulator/img/
+research/*/
+*.skill
