@@ -1,5 +1,3 @@
-import { Rarity, WeaponType } from './enums';
-
 export interface RawWeaponBaseStats {
     damage_per_projectile: number;
     projectiles_per_shot: number;

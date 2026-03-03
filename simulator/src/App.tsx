@@ -3,7 +3,7 @@ import { CalculationConsole } from './components/CalculationConsole'
 import { BuildBreakdown } from './components/BuildBreakdown'
 import { DamageDashboard } from './components/DamageDashboard'
 import { EncounterConditionsPanel } from './components/EncounterConditionsPanel'
-import { createWeapon, WEAPONS } from './data/weapons'
+import { createWeapon, RAW_WEAPONS } from './data/weapons'
 import { createArmor, ARMOR } from './data/armor'
 import { createModInstance, DEFAULT_SUBSTATS, MODS } from './data/mods'
 import { Player, PlayerStats } from './models/player'
@@ -60,7 +60,7 @@ function App() {
   const loadout = useMemo(() => {
     const l = new Loadout();
     const wId = selectedItemIds[WeaponSlot.Main] as WeaponKey;
-    if (wId && WEAPONS[wId]) {
+    if (wId && RAW_WEAPONS[wId]) {
       const modId = selectedModIds[WeaponSlot.Main] as ModKey;
       const substats = selectedSubstats[WeaponSlot.Main] || DEFAULT_SUBSTATS;
       const star = starLevels[WeaponSlot.Main] || 1;
