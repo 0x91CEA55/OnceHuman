@@ -7,7 +7,10 @@ import { StatAggregator } from './stat-aggregator';
 import { StatusManager } from './status-manager';
 import { CombatEventBus, CombatEvent } from './event-bus';
 import { DamageProcessor } from './damage-processor';
+import { DamageResolutionStrategy } from './damage-resolution-strategy';
 import { DamageIntent } from '../models/damage';
+import { ConfigManager } from './config';
+import { auditLog } from './audit-log';
 
 export interface SimulationLogEntry {
     timestamp: number;
@@ -43,7 +46,7 @@ export class DamageEngine {
     private statusManager = new StatusManager(null as any); 
     private combatState = new CombatState();
     private eventBus = new CombatEventBus();
-    private processor = new DamageProcessor();
+    private processor: DamageProcessor;
     
     private primaryTarget: Enemy;
     private allEnemies: Enemy[] = [];
@@ -58,8 +61,17 @@ export class DamageEngine {
 
     constructor(
         private player: Player, 
-        private conditions: EncounterConditions
+        private conditions: EncounterConditions,
+        private strategy?: DamageResolutionStrategy
     ) {
+        // Integrate with ConfigManager and AuditLog
+        const activeStrategy = this.strategy || ConfigManager.getStrategy();
+        this.processor = new DamageProcessor(activeStrategy);
+        
+        // Audit logging for the engine configuration
+        auditLog.setStrategy(ConfigManager.getActiveStrategyType());
+        auditLog.log('Engine', 'Initialization', `Started DamageEngine with ${ConfigManager.getActiveStrategyType()} strategy`);
+
         this.primaryTarget = new Enemy('boss-1', 9999999);
         this.allEnemies = [this.primaryTarget];
         this.statusManager = this.primaryTarget.statusManager; 
@@ -81,62 +93,91 @@ export class DamageEngine {
                 const allEffects = this.player.loadout.getAllTriggeredEffects();
                 
                 for (const effect of allEffects) {
-                    const legacyEvent: LegacyCombatEvent = {
-                        type: trigger,
-                        shotNumber: 0,
-                        damageProfile: { expected: event.damage || 0 } as any 
-                    };
-                    
-                    if (effect.trigger.type === trigger && effect.evaluate(ctx, legacyEvent)) {
-                        effect.execute(ctx, legacyEvent);
+                    if (effect.trigger.type === trigger) {
+                        const success = effect.evaluate(ctx, event);
+                        if (success) {
+                            effect.execute(ctx, event);
+                        }
                     }
                 }
             });
         }
     }
 
-    simulateMagDump(): number {
-        this.reset();
+    simulateMagDump(): SimulationLogEntry[] {
+        // console.error("SIMULATING MAG DUMP");
+        this.accumulatedDamage = 0;
+        this.currentTime = 0;
+        this.logs = [];
+        this.combatState = new CombatState(); // Fresh state for each run
+        this.telemetryData = {};
+        this.timeAxis = [];
+        this.lastSampleTime = -0.1;
         
-        const magSize = Math.floor(this.player.stats.get(StatType.MagazineCapacity)?.value ?? 0);
-        const rpm = this.player.stats.get(StatType.FireRate)?.value ?? 60;
-        const timeBetweenShots = 60 / rpm;
+        // Initial aggregate to get baseline mag size and fire rate
+        StatAggregator.aggregate(this.player, this.conditions, 1.0, true);
 
-        this.log(0, 'Start', `Beginning mag dump simulation with ${magSize} rounds.`);
+        const weapon = this.player.loadout.weapon;
+        if (!weapon) return [];
+
+        const fireRate = this.player.stats.get(StatType.FireRate)?.value ?? 100;
+        const shotInterval = 60 / fireRate;
+        const magSize = Math.floor(this.player.stats.get(StatType.MagazineCapacity)?.value ?? 30);
+        // console.error(`MAG SIZE: ${magSize}`);
 
         for (let shotCount = 1; shotCount <= magSize; shotCount++) {
+            // Re-aggregate stats before each shot to account for dynamic buffs
+            // ammoPercent is remaining ammo (1.0 at start, 0.0 at end)
             const ammoPercent = (magSize - shotCount + 1) / magSize;
-            StatAggregator.aggregate(this.player, this.conditions, ammoPercent, true);
-
+            StatAggregator.aggregate(this.player, this.conditions, ammoPercent);
+            
             this.simulateShot(shotCount);
-
-            if (shotCount % 10 === 0) {
-                this.eventBus.emit({
-                    type: EventTrigger.OnKill,
-                    source: this.player,
-                    target: this.primaryTarget,
-                    depth: 0
-                });
-            }
-
-            this.advanceTime(timeBetweenShots);
+            this.advanceTime(shotInterval);
         }
 
-        const maxFinalTickTime = this.currentTime + 10; 
-        while (this.hasActiveStatus() && this.currentTime < maxFinalTickTime) {
-            this.advanceTime(0.1);
-        }
-
-        this.log(this.currentTime, 'End', `Simulation complete. Total Damage: ${Math.round(this.accumulatedDamage)}`);
-        return this.accumulatedDamage;
+        return this.logs;
     }
 
-    private hasActiveStatus(): boolean {
-        if (this.player.statusManager.hasActiveStatus()) return true;
-        for (const enemy of this.allEnemies) {
-            if (enemy.statusManager.hasActiveStatus()) return true;
+    async runMonteCarlo(iterations: number = 500, onProgress?: (p: number) => void): Promise<MonteCarloResult> {
+        const allTotals: number[] = [];
+        let sampleLogs: SimulationLogEntry[] = [];
+
+        for (let i = 0; i < iterations; i++) {
+            const logs = this.simulateMagDump();
+            if (i === 0) sampleLogs = logs; 
+            
+            allTotals.push(this.accumulatedDamage);
+            
+            if (onProgress && i % 20 === 0) {
+                onProgress(i / iterations);
+                // Simple yield
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
         }
-        return false;
+
+        const average = allTotals.reduce((a, b) => a + b, 0) / iterations;
+        const min = Math.min(...allTotals);
+        const max = Math.max(...allTotals);
+        
+        const squareDiffs = allTotals.map(v => Math.pow(v - average, 2));
+        const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / iterations;
+        const stdDev = Math.sqrt(avgSquareDiff);
+
+        if (onProgress) onProgress(1.0);
+
+        return {
+            averageDamage: average,
+            minDamage: min,
+            maxDamage: max,
+            standardDeviation: stdDev,
+            iterations,
+            allTotals,
+            sampleLogs,
+            telemetry: {
+                timeAxis: this.timeAxis,
+                data: this.telemetryData
+            }
+        };
     }
 
     private simulateShot(shotNumber: number) {
@@ -158,17 +199,25 @@ export class DamageEngine {
             target: this.primaryTarget,
             intent: intent,
             damage: damage,
+            isCrit: intent.isCrit,
+            isWeakspot: intent.isWeakspot,
             depth: 0
         };
 
         this.eventBus.emit(hitEvent);
         
-        const critRate = (this.player.stats.get(StatType.CritRatePercent)?.value ?? 0) / 100;
-        if (Math.random() < critRate) {
+        if (intent.isCrit) {
              this.eventBus.emit({
                 ...hitEvent,
                 type: EventTrigger.OnCrit
              });
+        }
+
+        if (intent.isWeakspot) {
+            this.eventBus.emit({
+                ...hitEvent,
+                type: EventTrigger.OnWeakspotHit
+            });
         }
     }
 
@@ -207,181 +256,37 @@ export class DamageEngine {
             statusManager: this.statusManager,
             state: this.combatState,
             eventBus: this.eventBus,
-            getNearbyTargets: (target, _radius) => {
-                if (this.conditions.topology === EncounterTopology.SingleTarget) return [];
-                return this.allEnemies.filter(e => e.id !== target.id);
+            getNearbyTargets: (_target: Entity, _radius: number) => {
+                // In current sim, only one enemy.
+                return [];
             }
-        } as CombatContext; 
-    }
-
-    private reset() {
-        this.currentTime = 0;
-        this.accumulatedDamage = 0;
-        this.logs = [];
-        
-        this.allEnemies = [];
-        this.primaryTarget = new Enemy('primary-target', 9999999);
-        this.allEnemies.push(this.primaryTarget);
-        
-        if (this.conditions.topology === EncounterTopology.Horde) {
-            for (let i = 1; i <= 4; i++) {
-                this.allEnemies.push(new Enemy(`horde-enemy-${i}`, 9999999));
-            }
-        } else if (this.conditions.topology === EncounterTopology.DuoElites) {
-            this.allEnemies.push(new Enemy('elite-2', 9999999));
-        }
-
-        this.statusManager = this.primaryTarget.statusManager;
-        this.player.statusManager.clear();
-        for (const enemy of this.allEnemies) {
-            enemy.statusManager.clear();
-        }
-
-        this.combatState = new CombatState();
-        this.telemetryData = {};
-        this.timeAxis = [];
-        this.lastSampleTime = -0.1;
-        StatAggregator.aggregate(this.player, this.conditions, 1.0, true);
-    }
-
-    private log(timestamp: number, event: string, description: string, damage?: number, intent?: DamageIntent) {
-        const statsSnapshot = this.player.stats.snapshot();
-
-        let bucketMultipliers: Record<string, number>;
-        
-        if (intent) {
-            // Use multipliers from the intent for highest fidelity
-            bucketMultipliers = { ...intent.bucketMultipliers };
-        } else {
-            // Fallback for non-intent events (Start/End/Buff Gain etc)
-            const statusMult = 1 + (statsSnapshot[StatType.StatusDamagePercent] || 0) / 100;
-            const elementalMult = 1 + (statsSnapshot[StatType.ElementalDamagePercent] || 0) / 100;
-            const attackMult = 1 + (statsSnapshot[StatType.AttackPercent] || 0) / 100;
-            const weaponMult = 1 + (statsSnapshot[StatType.WeaponDamagePercent] || 0) / 100;
-            const kw = this.player.loadout.weapon?.keyword;
-            const kwType = kw?.dmgStatType;
-            const kwMult = kwType ? (1 + (statsSnapshot[kwType] || 0) / 100) : 1.0;
-
-            bucketMultipliers = {
-                status: statusMult,
-                elemental: elementalMult,
-                attack: attackMult * weaponMult,
-                keyword: kwMult
-            };
-        }
-
-        const activeBuffs = this.player.statusManager.getActiveBuffs().map(b => ({
-            id: b.definition.id,
-            name: b.definition.name,
-            stacks: b.currentStacks,
-            remaining: b.remainingDuration
-        }));
-        const activeDoTs = this.primaryTarget.statusManager.getActiveDoTs().map(d => ({
-            id: d.definition.id,
-            name: d.definition.name,
-            stacks: d.currentStacks,
-            remaining: d.remainingDuration,
-            nextTick: d.nextTickTime - timestamp
-        }));
-        const activeEffects = [...this.player.activeEffects];
-
-        this.logs.push({ 
-            timestamp, 
-            event, 
-            description, 
-            damage,
-            accumulatedDamage: this.accumulatedDamage,
-            statsSnapshot,
-            activeBuffs,
-            activeDoTs,
-            activeEffects,
-            bucketMultipliers
-        });
+        };
     }
 
     private sampleTelemetry() {
-        this.timeAxis.push(parseFloat(this.currentTime.toFixed(2)));
-        const snap = this.player.stats.snapshot();
-        for (const key of Object.values(StatType)) {
-            if (!this.telemetryData[key]) this.telemetryData[key] = [];
-            this.telemetryData[key]!.push(snap[key] || 0);
+        this.timeAxis.push(this.currentTime);
+        for (const stat of Object.values(StatType)) {
+            const val = this.player.stats.get(stat as StatType)?.value ?? 0;
+            if (!this.telemetryData[stat as StatType]) this.telemetryData[stat as StatType] = [];
+            this.telemetryData[stat as StatType]!.push(val);
         }
     }
 
     getLogs() { return this.logs; }
+    getAccumulatedDamage() { return this.accumulatedDamage; }
 
-    async runMonteCarlo(
-        iterations: number = 100, 
-        progressCallback?: (progress: number) => void
-    ): Promise<MonteCarloResult> {
-        const totals: number[] = [];
-        let sampleLogs: SimulationLogEntry[] = [];
-        const aggregateData: Partial<Record<StatType, number[][]>> = {};
-        let finalTimeAxis: number[] = [];
-
-        const chunkSize = 20; 
-        for (let i = 0; i < iterations; i += chunkSize) {
-            const currentChunkLimit = Math.min(i + chunkSize, iterations);
-            
-            for (let j = i; j < currentChunkLimit; j++) {
-                this.simulateMagDump();
-                totals.push(this.accumulatedDamage);
-                
-                if (j === 0) {
-                    sampleLogs = [...this.logs];
-                    finalTimeAxis = [...this.timeAxis];
-                }
-
-                for (const key of Object.values(StatType)) {
-                    if (!aggregateData[key]) aggregateData[key] = [];
-                    const samples = this.telemetryData[key] || [];
-                    for (let t = 0; t < samples.length; t++) {
-                        if (!aggregateData[key]![t]) aggregateData[key]![t] = [];
-                        aggregateData[key]![t].push(samples[t]);
-                    }
-                }
-            }
-
-            if (progressCallback) progressCallback(currentChunkLimit / iterations);
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-
-        const meanTelemetry: Partial<Record<StatType, number[]>> = {};
-        const varianceTelemetry: Partial<Record<StatType, number[]>> = {};
-
-        for (const key of Object.values(StatType)) {
-            const timeSteps = aggregateData[key] || [];
-            meanTelemetry[key] = [];
-            varianceTelemetry[key] = [];
-
-            for (const iterationValues of timeSteps) {
-                const sum = iterationValues.reduce((a, b) => a + b, 0);
-                const avg = sum / iterations;
-                meanTelemetry[key]!.push(avg);
-
-                const squareDiffs = iterationValues.map(v => Math.pow(v - avg, 2));
-                const stdDev = Math.sqrt(squareDiffs.reduce((a, b) => a + b, 0) / iterations);
-                varianceTelemetry[key]!.push(stdDev);
-            }
-        }
-
-        const avgDamage = totals.reduce((a, b) => a + b, 0) / iterations;
-        const squareDiffsDamage = totals.map(t => Math.pow(t - avgDamage, 2));
-        const stdDevDamage = Math.sqrt(squareDiffsDamage.reduce((a, b) => a + b, 0) / iterations);
-
-        return {
-            averageDamage: avgDamage,
-            minDamage: Math.min(...totals),
-            maxDamage: Math.max(...totals),
-            standardDeviation: stdDevDamage,
-            iterations,
-            allTotals: totals,
-            sampleLogs,
-            telemetry: {
-                timeAxis: finalTimeAxis,
-                data: meanTelemetry,
-                variance: varianceTelemetry
-            }
-        };
+    private log(timestamp: number, event: string, description: string, damage?: number, intent?: DamageIntent) {
+        this.logs.push({
+            timestamp,
+            event,
+            description,
+            damage,
+            accumulatedDamage: this.accumulatedDamage,
+            statsSnapshot: this.player.stats.snapshot(),
+            activeBuffs: [], // TODO: Get from status manager
+            activeDoTs: [],
+            activeEffects: [],
+            bucketMultipliers: intent?.bucketMultipliers ?? {}
+        });
     }
 }

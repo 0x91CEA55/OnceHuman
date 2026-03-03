@@ -5,6 +5,7 @@ import { StatType, FlagType } from '../types/enums';
 import { Player } from './player';
 import { EncounterConditions, CombatEvent, AggregationContext } from '../types/common';
 import { StatusManager } from '../engine/status-manager';
+import { LegacyResolutionStrategy } from '../engine/damage-resolution-strategy';
 import { Entity } from './entity';
 
 /**
@@ -159,7 +160,7 @@ export class StaticAttributeEffect extends BaseEffect {
 }
 
 export class ShrapnelEffect extends BaseEffect {
-    private processor = new DamageProcessor();
+    private processor = new DamageProcessor(new LegacyResolutionStrategy());
 
     constructor(source?: string) {
         super(source || 'Shrapnel');
@@ -190,7 +191,7 @@ export class ShrapnelEffect extends BaseEffect {
 }
 
 export class ExplosionEffect extends BaseEffect {
-    private processor = new DamageProcessor();
+    private processor = new DamageProcessor(new LegacyResolutionStrategy());
 
     constructor(
         public readonly scalingFactor: number,
@@ -387,7 +388,7 @@ export class ActiveDoT extends StatusInstance {
     public nextTickTime: number;
     public maxStacks: number;
     public duration: number;
-    private processor = new DamageProcessor();
+    private processor = new DamageProcessor(new LegacyResolutionStrategy());
 
     constructor(
         public readonly definition: DoTEffect,

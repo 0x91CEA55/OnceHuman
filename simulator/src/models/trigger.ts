@@ -1,6 +1,6 @@
 import { EventTrigger, EnemyType } from '../types/enums';
 import { BaseEffect, CombatContext } from './effect';
-import { CombatEvent } from '../types/common';
+import { CombatEvent } from '../engine/event-bus';
 
 export abstract class Condition {
     abstract evaluate(ctx: CombatContext, eventData?: CombatEvent): boolean;
@@ -42,7 +42,9 @@ export class HitCounterCondition extends Condition {
 
     evaluate(ctx: CombatContext, eventData?: CombatEvent): boolean {
         const key = `hit-counter-${this.targetHits}`;
-        const increment = (this.critsCountAsTwo && eventData?.type === EventTrigger.OnCrit) ? 2 : 1;
+        // If it's a crit and we count crits as two, we increment by 2.
+        // Otherwise, it's a standard hit increment of 1.
+        const increment = (this.critsCountAsTwo && eventData?.isCrit) ? 2 : 1;
         
         ctx.state.incrementCounter(key, increment);
         

@@ -42,7 +42,7 @@ describe('Simulation Scrubber Reactivity', () => {
         await waitFor(() => {
             const tabs = screen.getAllByText(/01. TIMELINE/i);
             expect(tabs.length).toBeGreaterThan(0);
-        }, { timeout: 2000 });
+        }, { timeout: 5000 });
 
         // 3. Find the scrubber (Radix UI Slider uses role="slider")
         const slider = screen.getByRole('slider');

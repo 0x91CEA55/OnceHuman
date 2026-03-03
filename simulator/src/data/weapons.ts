@@ -1,8 +1,11 @@
-import { WeaponType, Rarity, KeywordType, WeaponKey, StatType, DamageTrait } from '../types/enums';
+import { WeaponType, Rarity, KeywordType, WeaponKey, StatType } from '../types/enums';
 import { Weapon, WeaponStats, Mod } from '../models/equipment';
 import { Burn, Shrapnel, FastGunner, BullsEye, PowerSurge, FrostVortex, UnstableBomber, Keyword, Bounce, FortressWarfare } from '../pipelines/keyword';
-import { TriggeredEffect, OnKillTrigger, OnHitTrigger, ChanceCondition, HitCounterCondition, TargetAtMaxStatusStacksCondition } from '../models/trigger';
-import { ExplosionEffect, DoTEffect, ShrapnelEffect, BaseEffect, IncreaseStatEffect } from '../models/effect';
+import { BaseEffect } from '../models/effect';
+import { DataMapper } from '../engine/data-mapper';
+import { ScalingEngine } from '../engine/scaling-engine';
+import { EffectRegistry } from '../engine/effect-registry';
+import { RawWeaponData } from '../types/data-sources';
 
 export function getKeywordInstance(type: KeywordType): Keyword {
     switch (type) {
@@ -19,238 +22,162 @@ export function getKeywordInstance(type: KeywordType): Keyword {
     }
 }
 
-export interface WeaponBaseStatsData {
-    damagePerProjectile: number;
-    projectilesPerShot: number;
-    fireRate: number;
-    magazineCapacity: number;
-    critRatePercent: number;
-    weakspotDamagePercent: number;
-    critDamagePercent: number;
-}
-
-export interface WeaponData {
-    id: string;
-    name: string;
-    type: WeaponType;
-    rarity: Rarity;
-    baseStats: WeaponBaseStatsData;
-    keywordType: KeywordType;
-    description: string;
-}
-
-export const WEAPONS: Record<WeaponKey, WeaponData> = {
+/**
+ * Raw data reflecting the structure of research/data/custom-datamine/weapon_list.json
+ * This satisfies the "Zero-Trust" ingestion requirement by using a mapper to normalize.
+ */
+export const RAW_WEAPONS: Record<string, RawWeaponData> = {
     [WeaponKey.DE50Jaws]: {
         id: WeaponKey.DE50Jaws,
         name: "DE.50 - Jaws",
-        type: WeaponType.Pistol,
-        rarity: Rarity.Legendary,
-        baseStats: {
-            damagePerProjectile: 128,
-            projectilesPerShot: 1,
-            fireRate: 190,
-            magazineCapacity: 8,
-            critRatePercent: 6,
-            weakspotDamagePercent: 60,
-            critDamagePercent: 25,
+        type: "pistol",
+        rarity: "legendary",
+        base_stats: {
+            damage_per_projectile: 128,
+            projectiles_per_shot: 1,
+            fire_rate: 190,
+            magazine_capacity: 8,
+            crit_rate_percent: 6,
+            weakspot_damage_percent: 60,
+            crit_damage_percent: 25,
         },
-        keywordType: KeywordType.UnstableBomber,
+        mechanics: {
+            description: "Unstable Bomber and Explosive DMG bonuses",
+            effects: [{ ability: "unstable_bomber" }]
+        },
         description: "Unstable Bomber and Explosive DMG bonuses"
     },
     [WeaponKey.SOCRLastValor]: {
         id: WeaponKey.SOCRLastValor,
         name: "SOCR - The Last Valor",
-        type: WeaponType.AssaultRifle,
-        rarity: Rarity.Legendary,
-        baseStats: {
-            damagePerProjectile: 48,
-            projectilesPerShot: 1,
-            fireRate: 515,
-            magazineCapacity: 30,
-            critRatePercent: 10,
-            weakspotDamagePercent: 60,
-            critDamagePercent: 50,
+        type: "assault_rifl",
+        rarity: "legendary",
+        base_stats: {
+            damage_per_projectile: 48,
+            projectiles_per_shot: 1,
+            fire_rate: 515,
+            magazine_capacity: 30,
+            crit_rate_percent: 10,
+            weakspot_damage_percent: 60,
+            crit_damage_percent: 50,
         },
-        keywordType: KeywordType.Shrapnel,
+        mechanics: {
+            description: "4% base chance to trigger Shrapnel. Critical hits count as two hits.",
+            effects: [{ ability: "shrapnel" }]
+        },
         description: "4% base chance to trigger Shrapnel. Critical hits count as two hits."
     },
     [WeaponKey.KVDBoomBoom]: {
         id: WeaponKey.KVDBoomBoom,
         name: "KVD - Boom Boom",
-        type: WeaponType.Smg,
-        rarity: Rarity.Legendary,
-        baseStats: {
-            damagePerProjectile: 32,
-            projectilesPerShot: 1,
-            fireRate: 650,
-            magazineCapacity: 100,
-            critRatePercent: 5,
-            weakspotDamagePercent: 60,
-            critDamagePercent: 50,
+        type: "smgs",
+        rarity: "legendary",
+        base_stats: {
+            damage_per_projectile: 32,
+            projectiles_per_shot: 1,
+            fire_rate: 650,
+            magazine_capacity: 100,
+            crit_rate_percent: 5,
+            weakspot_damage_percent: 60,
+            crit_damage_percent: 50,
         },
-        keywordType: KeywordType.Burn,
+        mechanics: {
+            description: "18% chance to trigger Burn on hit. Explosion on Kill.",
+            effects: [{ ability: "burn" }]
+        },
         description: "18% chance to trigger Burn on hit. Explosion on Kill."
     },
     [WeaponKey.MPS5PrimalRage]: {
         id: WeaponKey.MPS5PrimalRage,
         name: "MPS5 - Primal Rage",
-        type: WeaponType.Smg,
-        rarity: Rarity.Legendary,
-        baseStats: {
-            damagePerProjectile: 28,
-            projectilesPerShot: 1,
-            fireRate: 750,
-            magazineCapacity: 40,
-            critRatePercent: 15,
-            weakspotDamagePercent: 60,
-            critDamagePercent: 50,
+        type: "smgs",
+        rarity: "legendary",
+        base_stats: {
+            damage_per_projectile: 28,
+            projectiles_per_shot: 1,
+            fire_rate: 750,
+            magazine_capacity: 40,
+            crit_rate_percent: 15,
+            weakspot_damage_percent: 60,
+            crit_damage_percent: 50,
         },
-        keywordType: KeywordType.FastGunner,
+        mechanics: {
+            description: "35% chance to gain Fast Gunner stack on hit.",
+            effects: [{ ability: "fast_gunner" }]
+        },
         description: "35% chance to gain Fast Gunner stack on hit."
     },
     [WeaponKey.OctopusGrilledRings]: {
         id: WeaponKey.OctopusGrilledRings,
         name: "EBR-14: Octopus! Grilled Rings!",
-        type: WeaponType.SniperRifle,
-        rarity: Rarity.Legendary,
-        baseStats: {
-            damagePerProjectile: 471,
-            projectilesPerShot: 1,
-            fireRate: 300,
-            magazineCapacity: 20,
-            critRatePercent: 5,
-            weakspotDamagePercent: 50,
-            critDamagePercent: 40,
+        type: "sniper_rifles",
+        rarity: "legendary",
+        base_stats: {
+            damage_per_projectile: 471,
+            projectiles_per_shot: 1,
+            fire_rate: 300,
+            magazine_capacity: 20,
+            crit_rate_percent: 5,
+            weakspot_damage_percent: 50,
+            crit_damage_percent: 40,
         },
-        keywordType: KeywordType.Burn,
+        mechanics: {
+            description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3.",
+            effects: [{ ability: "burn" }]
+        },
         description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3."
     }
 };
 
 /**
- * Specialized class for KVD Boom Boom to handle its unique interactions.
+ * Optimized factory that uses DataMapper for normalization, ScalingEngine for 
+ * tiered/star math, and EffectRegistry for behavior injection.
  */
-export class KVDBoomBoom extends Weapon {
-    override getTriggeredEffects(): TriggeredEffect[] {
-        const effects = super.getTriggeredEffects();
-
-        // 1. Explosion on Kill (as per meta research)
-        effects.push(new TriggeredEffect(
-            new OnKillTrigger(),
-            [
-                new ExplosionEffect(3.0, StatType.PsiIntensity, 2, "Blaze Explosion"),
-                new DoTEffect('status-burn', 'Burn', 0.5, 6, 1, 0.12, StatType.PsiIntensity, DamageTrait.Burn, StatType.MaxBurnStacks, StatType.BurnDurationPercent)
-            ]
-        ));
-
-        // 2. Pyro Dino Synergy (Sample implementation of "eruptions when attacking burning enemies")
-        effects.push(new TriggeredEffect(
-            new OnHitTrigger(),
-            [new ExplosionEffect(1.0, StatType.PsiIntensity, 1, "Pyro Dino Eruption")],
-            [new ChanceCondition(0.15)] // Sample chance for the extra eruption
-        ));
-
-        return effects;
-    }
-}
-
-/**
- * Specialized class for DE.50 Jaws to handle hit-counting Unstable Bomber.
- */
-export class DE50Jaws extends Weapon {
-    override getTriggeredEffects(): TriggeredEffect[] {
-        const effects = super.getTriggeredEffects();
-
-        // Every 3 hits trigger Unstable Bomber. Crit = 2 hits.
-        // This requires a StateAware trigger that increments a counter in the context.
-        effects.push(new TriggeredEffect(
-            new OnHitTrigger(),
-            [new ExplosionEffect(0.8, StatType.PsiIntensity, 0, "Unstable Bomber")],
-            [new HitCounterCondition(3, true)] // true = Crits count as 2
-        ));
-
-        return effects;
-    }
-}
-
-/**
- * Specialized class for SOCR Last Valor to handle Shrapnel stacking.
- */
-export class SOCRLastValor extends Weapon {
-    override getTriggeredEffects(): TriggeredEffect[] {
-        const effects = super.getTriggeredEffects();
-
-        // Hitting 4 times triggers Shrapnel. Crit = 2 hits.
-        effects.push(new TriggeredEffect(
-            new OnHitTrigger(),
-            [new ShrapnelEffect()], // Specific Shrapnel resolution
-            [new HitCounterCondition(4, true)]
-        ));
-
-        return effects;
-    }
-}
-
-/**
- * EBR-14: Octopus! Grilled Rings!
- */
-export class OctopusGrilledRings extends Weapon {
-    override getTriggeredEffects(): TriggeredEffect[] {
-        const effects = [...super.getTriggeredEffects()];
-
-        // At max stacks, generate a fire ring (Explosion)
-        effects.push(new TriggeredEffect(
-            new OnHitTrigger(),
-            [new ExplosionEffect(1.5, StatType.PsiIntensity, 0.5, "Fire Ring")],
-            [new TargetAtMaxStatusStacksCondition('status-burn')]
-        ));
-
-        return effects;
-    }
-}
-
 export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1, calibration: number = 0, mod?: Mod): Weapon {
-    const data = WEAPONS[key];
-    if (!data) throw new Error(`Weapon ${key} not found`);
+    const raw = RAW_WEAPONS[key];
+    if (!raw) throw new Error(`Weapon ${key} not found`);
+
+    // 1. Data Ingestion & Normalization
+    const data = DataMapper.normalizeWeapon(raw);
+
+    // 2. Stat Derivation (Scaling Engine)
+    const calibrationMultiplier = 1 + (calibration / 100);
+    const finalBaseDamage = ScalingEngine.calculateFinalBaseDamage(
+        data.baseStats.damagePerProjectile,
+        star,
+        level,
+        calibrationMultiplier
+    );
 
     const wStats = new WeaponStats();
-    wStats.damagePerProjectile.value = data.baseStats.damagePerProjectile;
+    wStats.damagePerProjectile.value = finalBaseDamage;
     wStats.projectilesPerShot.value = data.baseStats.projectilesPerShot;
     wStats.fireRate.value = data.baseStats.fireRate;
     wStats.magazineCapacity.value = data.baseStats.magazineCapacity;
     wStats.critRatePercent.value = data.baseStats.critRatePercent;
     wStats.critDamagePercent.value = data.baseStats.critDamagePercent;
-    wStats.weakspotDamagePercent.value = data.baseStats.weakspotDamagePercent;
+    wStats.weakspotDamagePercent.value = data.baseStats.weakspot_damage_percent || data.baseStats.weakspotDamagePercent; // DataMapper map raw weakspot_damage_percent to weakspotDamagePercent
 
-    let keyword = getKeywordInstance(data.keywordType);
-    let intrinsicEffects: BaseEffect[] = [];
+    // 3. Behavior Injection (Effect Registry)
+    const behavior = EffectRegistry.getWeaponBehavior(data.id);
+    const keyword = behavior.keywordOverride || getKeywordInstance(data.keywordType);
+    const intrinsicEffects = behavior.intrinsicEffects || [];
+    const triggeredEffects = behavior.triggeredEffects || [];
 
-    // EBR-14 Octopus specific keyword overrides and intrinsics
-    if (key === WeaponKey.OctopusGrilledRings) {
-        keyword = new Burn(KeywordType.Burn, 0.12, StatType.PsiIntensity, StatType.BurnDamagePercent, 0.50, true, false);
-        intrinsicEffects = [
-            new IncreaseStatEffect(StatType.BurnDamageFactor, 75),
-            new IncreaseStatEffect(StatType.MaxBurnStacks, -3),
-            new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
-            new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20)
-        ];
-    }
-
-    if (key === WeaponKey.KVDBoomBoom) {
-        return new KVDBoomBoom(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, []);
-    }
-    if (key === WeaponKey.DE50Jaws) {
-        return new DE50Jaws(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, []);
-    }
-    if (key === WeaponKey.SOCRLastValor) {
-        return new SOCRLastValor(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, []);
-    }
-    if (key === WeaponKey.OctopusGrilledRings) {
-        return new OctopusGrilledRings(data.id, data.name, data.rarity, star, level, calibration, mod, data.type, keyword, wStats, intrinsicEffects);
-    }
-
-    return new Weapon(
-        data.id, data.name, data.rarity, star, level, calibration, mod,
-        data.type, keyword, wStats, intrinsicEffects
+    const weapon = new Weapon(
+        data.id, 
+        data.name, 
+        data.rarity, 
+        star, 
+        level, 
+        calibration, 
+        mod,
+        data.type, 
+        keyword, 
+        wStats, 
+        intrinsicEffects,
+        triggeredEffects
     );
+
+    return weapon;
 }

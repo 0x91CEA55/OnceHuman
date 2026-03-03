@@ -6,6 +6,7 @@ import { BaseEffect, StaticAttributeEffect, IncreaseStatEffect } from './effect'
 import { TriggeredEffect } from './trigger';
 
 import { AggregationContext } from '../types/common';
+import { ScalingEngine } from '../engine/scaling-engine';
 
 /**
  * Represents the static blueprint data for a Mod (e.g., "Fateful Strike").
@@ -157,14 +158,6 @@ export class Calibration {
     }
 }
 
-const TIER_MULTIPLIERS: Record<number, number> = {
-    1: 0.172, 
-    2: 0.35,
-    3: 0.55,
-    4: 0.75,
-    5: 1.00  
-};
-
 export class Weapon extends Equipment {
     public calibrationMatrix: Calibration = new Calibration();
 
@@ -173,15 +166,19 @@ export class Weapon extends Equipment {
         public type: WeaponType,
         public keyword: Keyword,
         public stats: WeaponStats,
-        public intrinsicEffects: BaseEffect[]
+        public intrinsicEffects: BaseEffect[],
+        public triggeredEffects: TriggeredEffect[] = []
     ) { super(id, name, rarity, star, level, calibration, mod); }
 
     protected override applyBaseStats(ctx: AggregationContext): void {
-        const starMultiplier = 1 + (this.star - 1) * 0.05;
-        const tierMultiplier = TIER_MULTIPLIERS[this.level] || 1.0;
         const calibrationMultiplier = this.calibrationMatrix.getBaseDmgMultiplier();
         
-        const finalBaseDamage = this.stats.damagePerProjectile.value * starMultiplier * tierMultiplier * calibrationMultiplier;
+        const finalBaseDamage = ScalingEngine.calculateFinalBaseDamage(
+            this.stats.damagePerProjectile.value,
+            this.star,
+            this.level,
+            calibrationMultiplier
+        );
 
         const statsToApply = [
             { type: StatType.DamagePerProjectile, value: finalBaseDamage },
@@ -216,7 +213,7 @@ export class Weapon extends Equipment {
     }
 
     override getTriggeredEffects(): TriggeredEffect[] {
-        return [...super.getTriggeredEffects(), ...this.keyword.getTriggeredEffects()];
+        return [...super.getTriggeredEffects(), ...this.keyword.getTriggeredEffects(), ...this.triggeredEffects];
     }
 }
 

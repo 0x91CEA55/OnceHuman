@@ -1,6 +1,6 @@
 import React from 'react';
 import { GearSlot, ModKey, Rarity, StatType, CalibrationStyle } from '../types/enums';
-import { WEAPONS } from '../data/weapons';
+import { RAW_WEAPONS } from '../data/weapons';
 import { ARMOR } from '../data/armor';
 import { MODS } from '../data/mods';
 import { Label } from "@/components/ui/label"
@@ -147,7 +147,7 @@ export const TechnicalSchematic: React.FC<TechnicalSchematicProps> = ({
     onSecondaryStatValueChange
 }) => {
     const items = slot === 'weapon_main'
-        ? Object.values(WEAPONS)
+        ? Object.values(RAW_WEAPONS)
         : Object.values(ARMOR).filter(a => a.slot === slot);
 
     const mods = Object.values(MODS).filter(m => m.slot === slot);
@@ -477,3 +477,4 @@ export const TechnicalSchematic: React.FC<TechnicalSchematicProps> = ({
         </div>
     );
 };
+/* diagnostic */

@@ -3,7 +3,7 @@ import { Player } from '../models/player';
 import { EncounterConditions, DamageProfile } from '../types/common';
 import { StatType, KeywordType, DamageTrait } from '../types/enums';
 import { TriggeredEffect, OnHitTrigger, ChanceCondition, EveryNShotsTrigger } from '../models/trigger';
-import { DoTEffect } from '../models/effect';
+import { DoTEffect, BuffEffect, IncreaseStatEffect, ExplosionEffect } from '../models/effect';
 
 export interface Keyword {
     type: KeywordType;
@@ -159,7 +159,7 @@ export class UnstableBomber implements Keyword {
         return [
             new TriggeredEffect(
                 new EveryNShotsTrigger(4),
-                [],
+                [new ExplosionEffect(this.scalingFactor || 0.7, StatType.PsiIntensity, 0, "Unstable Bomber")],
                 []
             )
         ];
@@ -213,7 +213,7 @@ export class FortressWarfare implements Keyword {
 
 export class FastGunner implements Keyword {
     constructor(
-        public type = KeywordType.FastGunner,
+        public type: KeywordType = KeywordType.FastGunner,
         public scalingFactor: number | undefined = undefined,
         public baseStatType: StatType | undefined = undefined,
         public dmgStatType: StatType | undefined = undefined,
@@ -226,13 +226,12 @@ export class FastGunner implements Keyword {
         return [
             new TriggeredEffect(
                 new OnHitTrigger(),
-                [new DoTEffect(
+                [new BuffEffect(
                     'buff-fastgunner', 
                     'Fast Gunner', 
-                    100, 2, 10, 
-                    0, 
-                    StatType.FireRate, 
-                    DamageTrait.FastGunner
+                    2, 
+                    10, 
+                    [new IncreaseStatEffect(StatType.FireRate, 10)]
                 )], 
                 [new ChanceCondition(this.baseTriggerChance)]
             )
@@ -246,11 +245,10 @@ export class FastGunner implements Keyword {
 
 export class BullsEye implements Keyword {
     constructor(
-        public type = KeywordType.BullsEye,
+        public type: KeywordType = KeywordType.BullsEye,
         public scalingFactor: number | undefined = undefined,
         public baseStatType: StatType | undefined = undefined,
-        public dmgStatType: StatType | undefined = undefined,
-        public vulnerabilityStatType: StatType | undefined = StatType.BullsEyeDamagePercent,
+        public dmgStatType: StatType | undefined = StatType.BullsEyeDamagePercent,
         public baseTriggerChance: number = 0.70,
         public canCrit: boolean = false,
         public canWeakspot: boolean = false
@@ -260,13 +258,12 @@ export class BullsEye implements Keyword {
         return [
             new TriggeredEffect(
                 new OnHitTrigger(), 
-                [new DoTEffect(
+                [new BuffEffect(
                     'status-bullseye', 
                     'Bull\'s Eye', 
-                    100, 10, 1,
-                    0,
-                    StatType.VulnerabilityPercent,
-                    DamageTrait.BullsEye
+                    10, 
+                    1,
+                    [new IncreaseStatEffect(StatType.VulnerabilityPercent, 8)]
                 )],
                 [new ChanceCondition(this.baseTriggerChance)]
             )
@@ -285,8 +282,6 @@ export class KeywordDamagePipeline extends BaseDamagePipeline {
             return { noCritNoWs: 0, critNoWs: 0, noCritWs: 0, critWs: 0, expected: 0 };
         }
         
-        // This pipeline is for PAPER DPS (deterministic). 
-        // It should match the logic in ActiveDoT.onTick eventually.
-        return { noCritNoWs: 0, critNoWs: 0, noCritWs: 0, critWs: 0, expected: 0 }; // Placeholder for now
+        return { noCritNoWs: 0, critNoWs: 0, noCritWs: 0, critWs: 0, expected: 0 }; // Placeholder
     }
 }

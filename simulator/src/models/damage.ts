@@ -27,7 +27,9 @@ export class DamageIntent {
         public readonly target: Entity,
         public readonly isProc: boolean = false,
         public readonly procCoefficient: number = 1.0,
-        public readonly label: string = 'Damage'
+        public readonly label: string = 'Damage',
+        public isCrit: boolean = false,
+        public isWeakspot: boolean = false
     ) {}
 
     addTrait(trait: DamageTrait) {

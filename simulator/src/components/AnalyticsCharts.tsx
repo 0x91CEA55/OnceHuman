@@ -121,7 +121,7 @@ export const DamageTimeSeriesChart: React.FC<DamageTimeSeriesChartProps> = ({ lo
                     </Bar>
 
                     {/* Current Scrubber Position */}
-                    {currentIndex < logs.length && (
+                    {logs[currentIndex] && (
                         <ReferenceLine 
                             x={parseFloat(logs[currentIndex].timestamp.toFixed(2))} 
                             stroke="#ffffff40" 

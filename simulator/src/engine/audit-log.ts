@@ -8,6 +8,16 @@ export interface AuditEntry {
 
 export class AuditLog {
     private entries: AuditEntry[] = [];
+    private activeStrategy: string = 'unknown';
+
+    setStrategy(strategy: string) {
+        this.activeStrategy = strategy;
+        this.log('Engine', 'Resolution Strategy', strategy);
+    }
+
+    getActiveStrategy(): string {
+        return this.activeStrategy;
+    }
 
     log(category: string, label: string, value: string | number | boolean, formula?: string) {
         this.entries.push({

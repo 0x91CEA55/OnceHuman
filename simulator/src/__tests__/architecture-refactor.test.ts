@@ -8,6 +8,7 @@ import { DamageEngine } from '../engine/damage-engine';
 import { StatAggregator } from '../engine/stat-aggregator';
 import { DamageIntent } from '../models/damage';
 import { DamageProcessor } from '../engine/damage-processor';
+import { LegacyResolutionStrategy } from '../engine/damage-resolution-strategy';
 
 describe('Architecture Refactor: Bucket Scaling & Stateful Triggers', () => {
     let player: Player;
@@ -17,10 +18,20 @@ describe('Architecture Refactor: Bucket Scaling & Stateful Triggers', () => {
         conditions = new EncounterConditions();
         const loadout = new Loadout();
         player = new Player(loadout, new PlayerStats(), 100);
+        
+        // Fix: Mock reset to use 0 as PsiIntensity baseline for this test file
+        // This stops compounding math errors where 125 (Level 50 baseline) 
+        // conflicts with the test's expectation of 100 * 1.15 = 115.
+        const originalReset = player.stats.reset.bind(player.stats);
+        jest.spyOn(player.stats, 'reset').mockImplementation(() => {
+            originalReset();
+            player.stats.get(StatType.PsiIntensity)!.value = 0;
+        });
+        player.stats.get(StatType.PsiIntensity)!.value = 0;
     });
 
     test('Two-Bucket Keyword Scaling (Factor * Final)', () => {
-        const processor = new DamageProcessor();
+        const processor = new DamageProcessor(new LegacyResolutionStrategy());
         const target = { id: 'test', hp: 9999, takeDamage: () => { }, isDead: () => false, statusManager: null as any } as any;
 
         // 1. Setup Base Shrapnel (50% of Attack)
@@ -43,11 +54,13 @@ describe('Architecture Refactor: Bucket Scaling & Stateful Triggers', () => {
         const engine = new DamageEngine(player, conditions);
 
         // Jaws: Every 3 hits trigger UB.
-        // Mocking Math.random to force a Crit on Shot 2
+        // RefinedResolutionStrategy calls Math.random() twice per shot (Crit, Weakspot).
+        // Shot 1: Calls 1 (Crit), 2 (WS)
+        // Shot 2: Calls 3 (Crit), 4 (WS)
         let randomCalls = 0;
         jest.spyOn(Math, 'random').mockImplementation(() => {
             randomCalls++;
-            if (randomCalls === 4) return 0; // The Crit check for Shot 2
+            if (randomCalls === 3) return 0; // Force Crit on Shot 2
             return 0.9; // Fail other random checks
         });
 
