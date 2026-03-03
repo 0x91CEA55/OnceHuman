@@ -1,14 +1,15 @@
 import React from 'react';
-import { WEAPONS, WeaponData } from '../data/weapons';
+import { RAW_WEAPONS } from '../data/weapons';
 import { WeaponKey } from '../types/enums';
+import { RawWeaponData } from '@/types/data-sources';
 
 interface WeaponSelectorProps {
     selectedWeaponId?: string;
-    onWeaponSelect: (weapon: WeaponData) => void;
+    onWeaponSelect: (weapon: RawWeaponData) => void;
 }
 
 export const WeaponSelector: React.FC<WeaponSelectorProps> = ({ selectedWeaponId, onWeaponSelect }) => {
-    const weaponList = Object.values(WEAPONS);
+    const weaponList = Object.values(RAW_WEAPONS);
 
     return (
         <div className="weapon-selector">
@@ -16,7 +17,7 @@ export const WeaponSelector: React.FC<WeaponSelectorProps> = ({ selectedWeaponId
                 value={selectedWeaponId}
                 onChange={(e) => {
                     const key = e.target.value as WeaponKey;
-                    const found = WEAPONS[key];
+                    const found = RAW_WEAPONS[key];
                     if (found) onWeaponSelect(found);
                 }}
             >
@@ -29,7 +30,7 @@ export const WeaponSelector: React.FC<WeaponSelectorProps> = ({ selectedWeaponId
             </select>
             {selectedWeaponId && (
                 <div className="weapon-info">
-                    <p className="description">{WEAPONS[selectedWeaponId as WeaponKey]?.description}</p>
+                    <p className="description">{RAW_WEAPONS[selectedWeaponId as WeaponKey]?.description}</p>
                 </div>
             )}
         </div>

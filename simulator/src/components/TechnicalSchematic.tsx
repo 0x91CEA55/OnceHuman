@@ -165,7 +165,7 @@ export const TechnicalSchematic: React.FC<TechnicalSchematicProps> = ({
         onSubstatChange(newSubstats);
     };
 
-    const getRarityColor = (rarity?: Rarity) => {
+    const getRarityColor = (rarity?: string) => {
         switch (rarity) {
             case Rarity.Legendary: return 'text-orange-400';
             case Rarity.Epic: return 'text-purple-400';

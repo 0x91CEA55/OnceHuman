@@ -20,8 +20,6 @@ export class DataMapper {
             critDamagePercent: raw.base_stats.crit_damage_percent,
         };
 
-        const damageBonus = this.normalizeDamageBonus(raw.damage_bonus);
-
         return {
             id: raw.id,
             name: raw.name,
@@ -93,28 +91,4 @@ export class DataMapper {
         return KeywordType.Shrapnel; // Default
     }
 
-    private static normalizeDamageBonus(bonus?: string | { type: string; target: string; value: number }): NormalizedDamageBonus {
-        if (!bonus || bonus === 'None') {
-            return { type: 'none', target: 'none', value: 0 };
-        }
-
-        if (typeof bonus === 'string') {
-            if (bonus.startsWith('Impact:')) {
-                const target = bonus.toLowerCase().includes('protocell') ? 'protocell' : 'none' as any;
-                return { type: 'impact', target, value: 0.2 }; // Standard value if not specified
-            }
-            if (bonus.startsWith('Suppression:')) {
-                const target = bonus.toLowerCase().includes('deviant') ? 'deviant' : 'none' as any;
-                return { type: 'suppression', target, value: 0.2 };
-            }
-        } else {
-            return {
-                type: bonus.type as any,
-                target: bonus.target as any,
-                value: bonus.value
-            };
-        }
-
-        return { type: 'none', target: 'none', value: 0 };
-    }
 }

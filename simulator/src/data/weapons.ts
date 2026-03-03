@@ -1,7 +1,6 @@
-import { WeaponType, Rarity, KeywordType, WeaponKey, StatType } from '../types/enums';
+import { KeywordType, WeaponKey } from '../types/enums';
 import { Weapon, WeaponStats, Mod } from '../models/equipment';
 import { Burn, Shrapnel, FastGunner, BullsEye, PowerSurge, FrostVortex, UnstableBomber, Keyword, Bounce, FortressWarfare } from '../pipelines/keyword';
-import { BaseEffect } from '../models/effect';
 import { DataMapper } from '../engine/data-mapper';
 import { ScalingEngine } from '../engine/scaling-engine';
 import { EffectRegistry } from '../engine/effect-registry';
@@ -43,7 +42,10 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
         },
         mechanics: {
             description: "Unstable Bomber and Explosive DMG bonuses",
-            effects: [{ ability: "unstable_bomber" }]
+            effects: [{
+                ability: "unstable_bomber",
+                type: ''
+            }]
         },
         description: "Unstable Bomber and Explosive DMG bonuses"
     },
@@ -63,7 +65,10 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
         },
         mechanics: {
             description: "4% base chance to trigger Shrapnel. Critical hits count as two hits.",
-            effects: [{ ability: "shrapnel" }]
+            effects: [{
+                ability: "shrapnel",
+                type: ''
+            }]
         },
         description: "4% base chance to trigger Shrapnel. Critical hits count as two hits."
     },
@@ -83,7 +88,10 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
         },
         mechanics: {
             description: "18% chance to trigger Burn on hit. Explosion on Kill.",
-            effects: [{ ability: "burn" }]
+            effects: [{
+                ability: "burn",
+                type: ''
+            }]
         },
         description: "18% chance to trigger Burn on hit. Explosion on Kill."
     },
@@ -103,7 +111,10 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
         },
         mechanics: {
             description: "35% chance to gain Fast Gunner stack on hit.",
-            effects: [{ ability: "fast_gunner" }]
+            effects: [{
+                ability: "fast_gunner",
+                type: ''
+            }]
         },
         description: "35% chance to gain Fast Gunner stack on hit."
     },
@@ -123,7 +134,10 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
         },
         mechanics: {
             description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3.",
-            effects: [{ ability: "burn" }]
+            effects: [{
+                ability: "burn",
+                type: ''
+            }]
         },
         description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3."
     }
@@ -156,7 +170,7 @@ export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1
     wStats.magazineCapacity.value = data.baseStats.magazineCapacity;
     wStats.critRatePercent.value = data.baseStats.critRatePercent;
     wStats.critDamagePercent.value = data.baseStats.critDamagePercent;
-    wStats.weakspotDamagePercent.value = data.baseStats.weakspot_damage_percent || data.baseStats.weakspotDamagePercent; // DataMapper map raw weakspot_damage_percent to weakspotDamagePercent
+    wStats.weakspotDamagePercent.value = data.baseStats.weakspotDamagePercent || data.baseStats.weakspotDamagePercent; // DataMapper map raw weakspot_damage_percent to weakspotDamagePercent
 
     // 3. Behavior Injection (Effect Registry)
     const behavior = EffectRegistry.getWeaponBehavior(data.id);

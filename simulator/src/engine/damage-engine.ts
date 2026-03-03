@@ -1,7 +1,7 @@
 import { Player } from '../models/player';
 import { Enemy } from '../models/enemy';
-import { EncounterConditions, CombatEvent as LegacyCombatEvent } from '../types/common';
-import { StatType, EventTrigger, DamageTrait, EncounterTopology } from '../types/enums';
+import { EncounterConditions } from '../types/common';
+import { StatType, EventTrigger, DamageTrait } from '../types/enums';
 import { CombatContext, CombatState } from '../models/effect';
 import { StatAggregator } from './stat-aggregator';
 import { StatusManager } from './status-manager';
@@ -256,7 +256,7 @@ export class DamageEngine {
             statusManager: this.statusManager,
             state: this.combatState,
             eventBus: this.eventBus,
-            getNearbyTargets: (_target: Entity, _radius: number) => {
+            getNearbyTargets: (_target: Enemy, _radius: number) => {
                 // In current sim, only one enemy.
                 return [];
             }
