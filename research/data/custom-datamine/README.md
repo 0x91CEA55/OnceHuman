@@ -1,0 +1,1 @@
+This data might be inaccurate/outdated/etc. Take with a grain of salt. Prefer to cross-reference with online community consensus for most up to date game version if possible/available and consult with user to confirm gap and which discrepancy should merit attention.

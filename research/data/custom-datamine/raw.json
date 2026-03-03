@@ -1,0 +1,2288 @@
+{
+    "metadata": {
+        "version": "1.3.0",
+        "last_updated": "2026-03-01",
+        "changelog": {
+            "1.3.0": "Major restructure: armor base_stats now uses slot.rarity.stars format (no redundant per-piece stats), added comprehensive armor_sets with all 12 set bonuses, added key_armor with unique effects only, added key_weapons with 25+ blueprint weapons including innate bonuses and damage bucket classifications",
+            "1.2.0": "Comprehensive mod OCR from game screenshots: weapon mods with Factor/Final bucket classification, mask mods with Final DMG sources identified, complete armor mod descriptions with numerical values",
+            "1.1.0": "Added damage_formula_system with Factor/Final bucket documentation, armor base stats, ammunition multipliers, suffix tier values",
+            "1.0.0": "Initial database with weapons, mods, keywords"
+        },
+        "data_sources": [
+            "Community spreadsheets (Farmerzez, Mawn, OhDex)",
+            "Once Human Fandom Wiki",
+            "Reddit r/OnceHumanOfficial",
+            "Chinese gaming resources (TapTap, 17173.com, NGA forums)",
+            "Gemini web-grounded search (2026-03-01)",
+            "In-game screenshot OCR (2026-03-01)",
+            "In-game observation"
+        ],
+        "notes": {
+            "january_2026_update": "Major mod system rework on 2026-01-21: Mods now have FIXED substats instead of random rolls. Legacy mods (pre-update) retain random rolled stats.",
+            "data_completeness": "Some values marked as null are not publicly documented. Weapon stats can vary by tier (I-V) and calibration level.",
+            "substat_system": "Post-update mods have fixed substats at levels 1-17, with 'Shiny' versions at level 17 having slightly higher main stats.",
+            "damage_formula_note": "Keywords use two multiplicative buckets: Factor (additive within) and Final (additive within, multiplicative with Factor). See damage_formula_system for details.",
+            "factor_final_summary": "CONFIRMED FINAL BUCKET MODS: Break Bounce (+25% Bounce Final when target >50% HP), Frostwave Wither (+30% Frost Vortex Final, decaying), Pinpoint Strike (+35% UB Final when single target). Most other keyword DMG bonuses are Factor bucket."
+        }
+    },
+    "armor_mods": {
+        "helmet": [
+            {
+                "name": "Momentum Up",
+                "effect": "First 50% of magazine: Fire Rate +10%. Next 50%: Weapon DMG +30%.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "Fateful Strike",
+                "effect": "Disables Weakspot DMG, but Crit Rate +10% and Crit DMG +30%.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "Work Of Proficiency",
+                "effect": "Reloading empty magazine: Reload Speed +10% and Elemental DMG +20% for 5s. Resets on next reload.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "First-Move Advantage",
+                "effect": "For 2s after reloading: Crit Rate +10% and Crit DMG +20%.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "Deviation Expert",
+                "effect": "Range -25%, but Fire Rate +10% and Status DMG +20%.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "Precise Strike",
+                "effect": "Weakspot hit: Weakspot DMG +12% for 3s, stacks up to 3 times.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "Mag Expansion",
+                "effect": "Reloading empty magazine increases capacity by 30%.",
+                "slot": "Helmet"
+            },
+            {
+                "name": "Elemental Havoc",
+                "effect": "Elemental DMG +10%. When HP above 90%, additional +10% Elemental DMG.",
+                "slot": "Helmet"
+            }
+        ],
+        "top": [
+            {
+                "name": "Resist Advantage",
+                "effect": "DMG Reduction +10% when enemies within 7m. Taking melee DMG grants additional +10% DMG Reduction for 5s.",
+                "slot": "Top"
+            },
+            {
+                "name": "Head Guard",
+                "effect": "When HP above 70%, head is no longer a Weakspot.",
+                "slot": "Top"
+            },
+            {
+                "name": "Critical Rescue",
+                "effect": "When HP drops below 30%: DMG Reduction +20% and Healing Received +20%.",
+                "slot": "Top"
+            },
+            {
+                "name": "Rejuvenating",
+                "effect": "Using healing shot: Movement Speed +20% for 2s and fully refills magazine from inventory (up to 100%).",
+                "slot": "Top"
+            },
+            {
+                "name": "Quick Comeback",
+                "effect": "When HP above 70%: Healing from all sources +25%.",
+                "slot": "Top"
+            },
+            {
+                "name": "Enduring Shield",
+                "effect": "Out of combat: Gain 1 stack of Safe Haven every 5s (max 5). Every 5 hits received consumes 1 stack for 8% HP shield for 3s.",
+                "slot": "Top"
+            },
+            {
+                "name": "Head-on Conflict",
+                "effect": "Enemies within 7m: DMG Reduction +10%. Taking melee DMG: additional +10% DMG Reduction for 5s.",
+                "slot": "Top"
+            },
+            {
+                "name": "Healing Fortification",
+                "effect": "When using healing shot: DMG Reduction +40% for 2s.",
+                "slot": "Top"
+            },
+            {
+                "name": "Status Immune",
+                "effect": "When HP falls below 60%: All negative Deviated states purged. 15s cooldown.",
+                "slot": "Top"
+            }
+        ],
+        "bottoms": [
+            {
+                "name": "Precision Charge",
+                "effect": "Per 10% Weakspot hit percentage from last magazine: Elemental DMG +4% for 10s (max 24%). Resets on reload.",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Unstoppable",
+                "effect": "Hitting enemy from 20m+: Weakspot DMG +10%. Each additional meter beyond 20: +1% Weakspot DMG (max 20%).",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Melee Momentum",
+                "effect": "Melee DMG +20%. Melee kill restores 30% Max Stamina.",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Status Amplification",
+                "effect": "When magazine empty: Status DMG +10% for 12s, stacks up to 3 times.",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Bullet Siphon",
+                "effect": "Weapon DMG +5%. Per 5 rounds missing from magazine: Weapon DMG +4% (max 20%). Resets on reload.",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Three Strikes",
+                "effect": "First 3 hits after reloading (not exceeding 50% mag capacity): Weakspot DMG +30%.",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Reload Rampage",
+                "effect": "Reloading grants Weapon DMG +5%. Per 5 bullets consumed: Weapon DMG +4% (max 20%).",
+                "slot": "Bottoms"
+            },
+            {
+                "name": "Deadshot",
+                "effect": "Each Crit hit with non-melee weapon: Crit DMG +5%, stacks up to 45%. Removed on reload.",
+                "slot": "Bottoms"
+            }
+        ],
+        "shoes": [
+            {
+                "name": "Slow and Steady",
+                "effect": "Melee/Weapon/Status DMG +10%. When HP above 90%: additional +10%.",
+                "slot": "Shoes"
+            },
+            {
+                "name": "Covered Advance",
+                "effect": "Taking no damage for 4s: Melee/Weapon/Status DMG +20% for 30s.",
+                "slot": "Shoes"
+            },
+            {
+                "name": "Secluded Strike",
+                "effect": "No enemies within 7m: Weapon DMG and Status DMG +15%.",
+                "slot": "Shoes"
+            },
+            {
+                "name": "Ferocious Charge",
+                "effect": "Killing enemy within 10m: Melee/Weapon/Status DMG +20% for 8s.",
+                "slot": "Shoes"
+            },
+            {
+                "name": "Rush Hour",
+                "effect": "Per 10% decrease in HP: Melee/Weapon/Status DMG +4%.",
+                "slot": "Shoes"
+            },
+            {
+                "name": "Ruthless Reaper",
+                "effect": "After 2 enemy kills: Magazine refilled from reserves without reloading.",
+                "slot": "Shoes"
+            }
+        ],
+        "gloves": [
+            {
+                "name": "Elemental Overload",
+                "effect": "Elemental DMG (Blaze, Shock, Frost, Blast) +18%.",
+                "slot": "Gloves"
+            },
+            {
+                "name": "Melee Amplifier",
+                "effect": "Melee DMG +20%.",
+                "slot": "Gloves"
+            },
+            {
+                "name": "Status Enhancement",
+                "effect": "Status DMG +20%.",
+                "slot": "Gloves"
+            },
+            {
+                "name": "Crit Amplifier",
+                "effect": "Crit Rate +10%, Crit DMG +15%.",
+                "slot": "Gloves"
+            },
+            {
+                "name": "Crit Boost",
+                "effect": "Crit Rate +15%.",
+                "slot": "Gloves"
+            },
+            {
+                "name": "Elemental Amplifier",
+                "effect": "Reloading empty magazine: Status DMG +10% for 12s, stacks up to 3 times.",
+                "slot": "Gloves"
+            }
+        ],
+        "universal": [
+            {
+                "name": "Lifeforce Boost",
+                "effect": "Max HP +12%.",
+                "slot": "Any"
+            },
+            {
+                "name": "Munitions Amplifier",
+                "effect": "Weapon DMG +15%.",
+                "slot": "Any"
+            },
+            {
+                "name": "Flame Resonance",
+                "effect": "Max Burn stacks +2, but Burn duration -20%.",
+                "slot": "Any"
+            },
+            {
+                "name": "Weakspot DMG Boost",
+                "effect": "Increases damage dealt to enemy Weakspots.",
+                "slot": "Any"
+            },
+            {
+                "name": "Crit DMG Enhancement",
+                "effect": "Provides bonus to Critical Damage.",
+                "slot": "Any"
+            }
+        ]
+    },
+    "weapon_mods": {
+        "_documentation": "Weapon mods organized by keyword. Slot indicates gear type (Weapon = weapon mod slot). damage_bucket indicates Factor vs Final classification where known.",
+        "burn": [
+            {
+                "name": "Burning Wrath",
+                "slot": "Weapon",
+                "effect": "Triggering Burn has a 25% chance to grant +1 Burn stacks.",
+                "keyword": "Burn",
+                "damage_bucket": null
+            },
+            {
+                "name": "Flame Resonance",
+                "slot": "Weapon",
+                "effect": "Max Burn stack +2, Burn duration -20.0%.",
+                "keyword": "Burn",
+                "damage_bucket": null,
+                "notes": "Tradeoff mod - more stacks but shorter duration"
+            },
+            {
+                "name": "Blaze Blessing",
+                "slot": "Weapon",
+                "effect": "When defeating an enemy affected by Burn, recover 5% HP.",
+                "keyword": "Burn",
+                "damage_bucket": null
+            },
+            {
+                "name": "Embers",
+                "slot": "Weapon",
+                "effect": "When Burn is removed, stacks only -50%.",
+                "keyword": "Burn",
+                "damage_bucket": null,
+                "notes": "Sustain mod - preserves half stacks on expiry"
+            }
+        ],
+        "frost_vortex": [
+            {
+                "name": "Frosty Blessing",
+                "slot": "Weapon",
+                "effect": "When Frost Vortex disappears, restore 10% of HP.",
+                "keyword": "Frost Vortex",
+                "damage_bucket": null
+            },
+            {
+                "name": "Cryo Catalyst",
+                "slot": "Weapon",
+                "effect": "Frost Vortex DMG +10%. After triggering Frost Construct (Ice Spike, Ice Missile, Ice Crystal) Frost Vortex DMG +5%.",
+                "keyword": "Frost Vortex",
+                "damage_bucket": "factor",
+                "values": {
+                    "base": 0.10,
+                    "construct_bonus": 0.05
+                }
+            },
+            {
+                "name": "Shattering Ice",
+                "slot": "Weapon",
+                "effect": "When an enemy at the center of the Frost Vortex is defeated, deal 50% Psi Intensity Ice DMG to enemies within 1m 1 time.",
+                "keyword": "Frost Vortex",
+                "damage_bucket": null
+            },
+            {
+                "name": "Cryo Blast",
+                "slot": "Weapon",
+                "effect": "After triggering a Frost Vortex, Frost Vortex DMG +4% for 4s. Up to 5 stacks (20% total).",
+                "keyword": "Frost Vortex",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_stack": 0.04,
+                    "max_stacks": 5,
+                    "duration_seconds": 4
+                }
+            }
+        ],
+        "power_surge": [
+            {
+                "name": "Surge Amplifier",
+                "slot": "Weapon",
+                "effect": "Dealing Power Surge DMG grants Power Surge DMG +5% for 3s, up to 4 stack(s).",
+                "keyword": "Power Surge",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_stack": 0.05,
+                    "max_stacks": 4,
+                    "duration_seconds": 3
+                }
+            },
+            {
+                "name": "Static Shock",
+                "slot": "Weapon",
+                "effect": "Power Surge Status duration -50%. Power Surge DMG +20%.",
+                "keyword": "Power Surge",
+                "damage_bucket": "factor",
+                "values": {
+                    "dmg_bonus": 0.20,
+                    "duration_penalty": -0.50
+                }
+            },
+            {
+                "name": "Shock Diffusion",
+                "slot": "Weapon",
+                "effect": "When triggering Power Surge, apply the Power Surge status to 1 enemy within 10m of the target (prioritizes enemies that are not affected by Power Surge status).",
+                "keyword": "Power Surge",
+                "damage_bucket": null
+            },
+            {
+                "name": "Shock Rampage",
+                "slot": "Weapon",
+                "effect": "Dealing Power Surge DMG grants +5% Power Surge Trigger Chance (based on weapon's Trigger Chance) for 5s. Effect can stack up to 4 times.",
+                "keyword": "Power Surge",
+                "damage_bucket": null
+            }
+        ],
+        "unstable_bomber": [
+            {
+                "name": "Heavy Explosives",
+                "slot": "Weapon",
+                "effect": "Unstable Bomber inflicts stagger on enemies and deals 40% less damage to you.",
+                "keyword": "Unstable Bomber",
+                "damage_bucket": null
+            },
+            {
+                "name": "Bombardier Souvenir",
+                "slot": "Weapon",
+                "effect": "When triggering Unstable Bomber, automatically refill 10% of your magazine.",
+                "keyword": "Unstable Bomber",
+                "damage_bucket": null
+            },
+            {
+                "name": "Reckless Bomber",
+                "slot": "Weapon",
+                "effect": "For every 1% Crit Rate, Unstable Bomber DMG +0.5%.",
+                "keyword": "Unstable Bomber",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_crit_percent": 0.005
+                }
+            },
+            {
+                "name": "Super Charged",
+                "slot": "Weapon",
+                "effect": "Triggering Unstable Bomber grants Unstable Bomber DMG +5% for 3s. Effect can stack up to 6 times.",
+                "keyword": "Unstable Bomber",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_stack": 0.05,
+                    "max_stacks": 6,
+                    "duration_seconds": 3
+                }
+            }
+        ],
+        "shrapnel": [
+            {
+                "name": "Shield Breaker",
+                "slot": "Weapon",
+                "effect": "When hitting a shielded enemy, Shrapnel DMG +60% for 1s.",
+                "keyword": "Shrapnel",
+                "damage_bucket": "factor",
+                "values": {
+                    "bonus": 0.60,
+                    "duration_seconds": 1,
+                    "condition": "shielded_enemy"
+                }
+            },
+            {
+                "name": "Shrapnel Souvenir",
+                "slot": "Weapon",
+                "effect": "When Shrapnel hits a Weakspot, automatically refills 1 bullet from inventory.",
+                "keyword": "Shrapnel",
+                "damage_bucket": null
+            },
+            {
+                "name": "Shatter Them All",
+                "slot": "Weapon",
+                "effect": "The more parts the Shrapnel hits, the higher the Shrapnel DMG. Each part +15%. Up to 45%.",
+                "keyword": "Shrapnel",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_part": 0.15,
+                    "max_bonus": 0.45
+                }
+            },
+            {
+                "name": "Shrapnel Smash",
+                "slot": "Weapon",
+                "effect": "Triggering Shrapnel grants +1.0% Shrapnel Crit Rate for 2 seconds, up to 20 stacks.",
+                "keyword": "Shrapnel",
+                "damage_bucket": null,
+                "values": {
+                    "per_stack": 0.01,
+                    "max_stacks": 20,
+                    "duration_seconds": 2
+                }
+            }
+        ],
+        "fast_gunner": [
+            {
+                "name": "Cowboy",
+                "slot": "Weapon",
+                "effect": "After reloading when the magazine is empty, Fast Gunner trigger chance +100% (based on the weapon's Trigger Chance) for 5s. When Fast Gunner reaches max stacks, the duration is increased by 5s.",
+                "keyword": "Fast Gunner",
+                "damage_bucket": null
+            },
+            {
+                "name": "Shoot Out",
+                "slot": "Weapon",
+                "effect": "When triggering Fast Gunner, Weapon DMG +1.5% for 10s, up to 20 stack(s).",
+                "keyword": "Fast Gunner",
+                "damage_bucket": null,
+                "values": {
+                    "per_stack": 0.015,
+                    "max_stacks": 20,
+                    "duration_seconds": 10
+                },
+                "notes": "Provides Weapon DMG, not Fast Gunner-specific DMG"
+            },
+            {
+                "name": "Precision Rush",
+                "slot": "Weapon",
+                "effect": "When Fast Gunner is active, increase Weakspot DMG while continuously shooting for 3s, up to 45%.",
+                "keyword": "Fast Gunner",
+                "damage_bucket": null,
+                "values": {
+                    "max_bonus": 0.45,
+                    "ramp_time_seconds": 3
+                }
+            }
+        ],
+        "bulls_eye": [
+            {
+                "name": "Recover Mark",
+                "slot": "Weapon",
+                "effect": "When defeating marked enemies, recover 15% HP and 25% Stamina.",
+                "keyword": "The Bull's Eye",
+                "damage_bucket": null
+            },
+            {
+                "name": "Hunter's Perk",
+                "slot": "Weapon",
+                "effect": "Marked enemies DMG vs. Metas -20%.",
+                "keyword": "The Bull's Eye",
+                "damage_bucket": null,
+                "notes": "Defensive mod - reduces damage from marked enemies"
+            },
+            {
+                "name": "Vulnerability Amplifier",
+                "slot": "Weapon",
+                "effect": "The Bull's Eye adds Vulnerability +8%.",
+                "keyword": "The Bull's Eye",
+                "damage_bucket": null,
+                "values": {
+                    "vulnerability_bonus": 0.08
+                },
+                "notes": "Stacks with base 8% vulnerability for 16% total"
+            },
+            {
+                "name": "Spreading Marks",
+                "slot": "Weapon",
+                "effect": "When a marked enemy is defeated, The Bull's Eye will spread to 1 enemies within 15m.",
+                "keyword": "The Bull's Eye",
+                "damage_bucket": null
+            }
+        ],
+        "fortress_warfare": [
+            {
+                "name": "United We Stand",
+                "slot": "Weapon",
+                "effect": "The more players inside the Fortress Warfare, the greater the Weapon DMG bonus, up to 40%.",
+                "keyword": "Fortress Warfare",
+                "damage_bucket": null,
+                "values": {
+                    "max_bonus": 0.40
+                },
+                "notes": "Co-op scaling mod"
+            },
+            {
+                "name": "Final Territory",
+                "slot": "Weapon",
+                "effect": "When Fortress Warfare ends, Weapon DMG +10%, Movement Speed +10% for 10s.",
+                "keyword": "Fortress Warfare",
+                "damage_bucket": null,
+                "values": {
+                    "weapon_dmg": 0.10,
+                    "move_speed": 0.10,
+                    "duration_seconds": 10
+                }
+            },
+            {
+                "name": "Durable Territory",
+                "slot": "Weapon",
+                "effect": "Every enemy defeated while in Fortress Warfare state will extend the effect by 5s (up to 5 times for every Fortress Warfare).",
+                "keyword": "Fortress Warfare",
+                "damage_bucket": null,
+                "values": {
+                    "extension_per_kill_seconds": 5,
+                    "max_extensions": 5
+                }
+            },
+            {
+                "name": "Portable Territory",
+                "slot": "Weapon",
+                "effect": "After leaving Fortress Warfare, the status will remain for 2s.",
+                "keyword": "Fortress Warfare",
+                "damage_bucket": null,
+                "values": {
+                    "linger_seconds": 2
+                }
+            }
+        ],
+        "bounce": [
+            {
+                "name": "Multi Bounce",
+                "slot": "Weapon",
+                "effect": "The more Bounces, the higher the damage, up to +45% (7.5% per Bounce).",
+                "keyword": "Bounce",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_bounce": 0.075,
+                    "max_bonus": 0.45
+                }
+            },
+            {
+                "name": "Bounce Rampage",
+                "slot": "Weapon",
+                "effect": "The more selectable targets Bounce has, the higher the Bounce DMG, up to 45% (15% per target).",
+                "keyword": "Bounce",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_target": 0.15,
+                    "max_bonus": 0.45
+                }
+            },
+            {
+                "name": "Boomerang Bullet",
+                "slot": "Weapon",
+                "effect": "Each time Bounce deals damage, its trigger chance +2% (based on the weapon's trigger chance), lasting 5s and stacking up to 10 times.",
+                "keyword": "Bounce",
+                "damage_bucket": null,
+                "values": {
+                    "per_stack": 0.02,
+                    "max_stacks": 10,
+                    "duration_seconds": 5
+                }
+            },
+            {
+                "name": "Super Bullet",
+                "slot": "Weapon",
+                "effect": "Bounce Crit Rate +10%, Bounce Crit DMG +25%.",
+                "keyword": "Bounce",
+                "damage_bucket": null,
+                "values": {
+                    "crit_rate": 0.10,
+                    "crit_dmg": 0.25
+                }
+            }
+        ]
+    },
+    "mask_mods": {
+        "_documentation": "Mask slot armor mods. Often provide keyword-specific enhancements with Final DMG multipliers.",
+        "burn": [
+            {
+                "name": "Retrusion Explosion",
+                "slot": "Mask",
+                "effect": "When hitting Burning enemies, Crit Rate +8%, and Crit DMG +20%.",
+                "keyword": "Burn",
+                "damage_bucket": null,
+                "values": {
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.20,
+                    "condition": "burning_enemy"
+                }
+            },
+            {
+                "name": "Blaze Amplifier",
+                "slot": "Mask",
+                "effect": "Every stack of Burn grants +3% Psi Intensity DMG.",
+                "keyword": "Burn",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_stack": 0.03
+                },
+                "notes": "Scales with Burn stacks, affects PSI-based damage"
+            }
+        ],
+        "frost_vortex": [
+            {
+                "name": "Frost Construct",
+                "slot": "Mask",
+                "effect": "Frost Constructs (Ice Spikes, Ice Missiles, Ice Crystals) deal +10% damage; if the target is in Frost Vortex status, damage dealt +10%.",
+                "keyword": "Frost Vortex",
+                "damage_bucket": "factor",
+                "values": {
+                    "base_bonus": 0.10,
+                    "vortex_bonus": 0.10
+                }
+            },
+            {
+                "name": "Frostwave Wither",
+                "slot": "Mask",
+                "effect": "Frost Vortex's Final DMG +30%, decreasing by 8% every second overtime.",
+                "keyword": "Frost Vortex",
+                "damage_bucket": "final",
+                "values": {
+                    "initial_bonus": 0.30,
+                    "decay_per_second": 0.08
+                },
+                "notes": "CONFIRMED FINAL BUCKET - decaying multiplier"
+            }
+        ],
+        "unstable_bomber": [
+            {
+                "name": "Pinpoint Strike",
+                "slot": "Mask",
+                "effect": "When Unstable Bomber hits only one enemy, Unstable Bomber Final DMG +35%.",
+                "keyword": "Unstable Bomber",
+                "damage_bucket": "final",
+                "values": {
+                    "bonus": 0.35,
+                    "condition": "single_target"
+                },
+                "notes": "CONFIRMED FINAL BUCKET - conditional single-target bonus"
+            },
+            {
+                "name": "Delayed Blast",
+                "slot": "Mask",
+                "effect": "Before the bomb explodes, for every 5 hits taken, the bomb's Ultimate DMG +25%.",
+                "keyword": "Unstable Bomber",
+                "damage_bucket": "factor",
+                "values": {
+                    "per_5_hits": 0.25
+                },
+                "notes": "Ultimate DMG terminology - likely Factor bucket"
+            }
+        ],
+        "shrapnel": [
+            {
+                "name": "Explosive Shrapnel",
+                "slot": "Mask",
+                "effect": "The 20th Shrapnel is explosive and deals +300% DMG with guaranteed critical hit.",
+                "keyword": "Shrapnel",
+                "damage_bucket": null,
+                "values": {
+                    "every_n_shrapnel": 20,
+                    "dmg_bonus": 3.00,
+                    "guaranteed_crit": true
+                }
+            },
+            {
+                "name": "Shrapnel Carnage",
+                "slot": "Mask",
+                "effect": "The chance of Shrapnel hitting Weakspots is increased by 100.0%, with Weakspot DMG +25.0%.",
+                "keyword": "Shrapnel",
+                "damage_bucket": null,
+                "values": {
+                    "weakspot_chance": 1.00,
+                    "weakspot_dmg": 0.25
+                }
+            }
+        ],
+        "power_surge": [
+            {
+                "name": "Thunderclap",
+                "slot": "Mask",
+                "effect": "After triggering Power Surge 20 times, the next hit summons Celestial Thunder (Shock DMG of 200% PSI Intensity).",
+                "keyword": "Power Surge",
+                "damage_bucket": null,
+                "values": {
+                    "trigger_count": 20,
+                    "psi_multiplier": 2.00
+                }
+            },
+            {
+                "name": "First Electrocution",
+                "slot": "Mask",
+                "effect": "For enemies without Power Surge status, Power Surge's Ultimate DMG +35%. Other plays will not affect Surge Status.",
+                "keyword": "Power Surge",
+                "damage_bucket": "factor",
+                "values": {
+                    "bonus": 0.35,
+                    "condition": "first_application"
+                },
+                "notes": "Ultimate DMG on fresh targets"
+            }
+        ],
+        "fast_gunner": [
+            {
+                "name": "Explosive Barrage",
+                "slot": "Mask",
+                "effect": "When in Fast Gunner state, Crit Rate +10%, and Weapon DMG +10%.",
+                "keyword": "Fast Gunner",
+                "damage_bucket": null,
+                "values": {
+                    "crit_rate": 0.10,
+                    "weapon_dmg": 0.10
+                }
+            },
+            {
+                "name": "Blitzkrieg",
+                "slot": "Mask",
+                "effect": "Fast Gunner stacks +5 and additional Fire Rate +1% for each stack.",
+                "keyword": "Fast Gunner",
+                "damage_bucket": null,
+                "values": {
+                    "extra_stacks": 5,
+                    "fire_rate_per_stack": 0.01
+                }
+            }
+        ],
+        "bulls_eye": [
+            {
+                "name": "Targeted Strike",
+                "slot": "Mask",
+                "effect": "When hitting marked enemies, Crit Rate +10%, and Crit DMG 25%.",
+                "keyword": "The Bull's Eye",
+                "damage_bucket": null,
+                "values": {
+                    "crit_rate": 0.10,
+                    "crit_dmg": 0.25
+                }
+            },
+            {
+                "name": "Most Wanted",
+                "slot": "Mask",
+                "effect": "Every time an enemy is marked, Attack +5% for 8s. Effect can stack up to 3 times.",
+                "keyword": "The Bull's Eye",
+                "damage_bucket": null,
+                "values": {
+                    "per_stack": 0.05,
+                    "max_stacks": 3,
+                    "duration_seconds": 8
+                }
+            }
+        ],
+        "fortress_warfare": [
+            {
+                "name": "Light Cannon",
+                "slot": "Mask",
+                "effect": "No Super Armor inside Fortress Warfare. While in Fortress Warfare state, Attack +12%.",
+                "keyword": "Fortress Warfare",
+                "damage_bucket": null,
+                "values": {
+                    "attack_bonus": 0.12,
+                    "loses_super_armor": true
+                }
+            },
+            {
+                "name": "Unbreakable",
+                "slot": "Mask",
+                "effect": "Fortress Warfare range -30%. While in Fortress Warfare state, Attack +15%.",
+                "keyword": "Fortress Warfare",
+                "damage_bucket": null,
+                "values": {
+                    "attack_bonus": 0.15,
+                    "range_penalty": -0.30
+                }
+            }
+        ],
+        "bounce": [
+            {
+                "name": "Precision Bounce",
+                "slot": "Mask",
+                "effect": "After triggering Bounce 6 times, the next bullet's Bounce DMG +125%.",
+                "keyword": "Bounce",
+                "damage_bucket": "factor",
+                "values": {
+                    "trigger_count": 6,
+                    "bonus": 1.25
+                },
+                "notes": "Large single-hit Factor bonus"
+            },
+            {
+                "name": "Break Bounce",
+                "slot": "Mask",
+                "effect": "When Bounce hits an enemy with HP above 50%, final Bounce DMG +25%.",
+                "keyword": "Bounce",
+                "damage_bucket": "final",
+                "values": {
+                    "bonus": 0.25,
+                    "condition": "target_hp_above_50"
+                },
+                "notes": "CONFIRMED FINAL BUCKET - conditional multiplier"
+            }
+        ]
+    },
+    "substats": {
+        "note": "Post January 2026 update: Mods have FIXED substats at specific levels (1-17). Legacy mods retain random rolled values.",
+        "suffix_tier_values": {
+            "_documentation": "Suffix determines the FIRST substat on a mod. Values scale by rarity tier.",
+            "violent": {
+                "guaranteed_substat": "Crit DMG",
+                "values_by_rarity": {
+                    "common": 0.03,
+                    "uncommon": 0.06,
+                    "rare": 0.09,
+                    "epic": 0.12,
+                    "legendary": 0.15
+                }
+            },
+            "precision": {
+                "guaranteed_substat": "Weakspot DMG",
+                "values_by_rarity": {
+                    "common": 0.018,
+                    "uncommon": 0.036,
+                    "rare": 0.054,
+                    "epic": 0.072,
+                    "legendary": 0.09
+                }
+            },
+            "talents": {
+                "guaranteed_substat": "Elemental DMG",
+                "values_by_rarity": {
+                    "common": 0.016,
+                    "uncommon": 0.032,
+                    "rare": 0.048,
+                    "epic": 0.064,
+                    "legendary": 0.08
+                }
+            },
+            "deviant_energy": {
+                "guaranteed_substat": "Status DMG / Elemental DMG (varies)",
+                "notes": "Variants include Wild, Mirror, Phantasmal with conditional bonuses"
+            },
+            "keyword_specific": {
+                "burn": {
+                    "guaranteed_substat": "Burn Trigger Chance",
+                    "legendary_value": 0.06,
+                    "notes": "Two Burn suffix pieces = +12% total burn chance"
+                }
+            }
+        },
+        "offensive": {
+            "weapon_dmg_percent": {
+                "description": "Increases base weapon damage",
+                "common_value": 0.012,
+                "legendary_value": 0.06,
+                "notes": "Fundamental damage multiplier"
+            },
+            "crit_dmg_percent": {
+                "description": "Increases critical hit damage",
+                "legendary_max": 0.15,
+                "notes": "Often found on 'Violent' suffix mods"
+            },
+            "weakspot_dmg_percent": {
+                "description": "Increases damage to enemy weak points",
+                "legendary_max": 0.15,
+                "notes": "Often found on 'Precision' suffix mods"
+            },
+            "elemental_dmg_percent": {
+                "description": "Increases elemental damage (Burn, Frost, Shock, Blast)",
+                "legendary_max": 0.08,
+                "notes": "Often found on 'Talents' suffix mods"
+            },
+            "status_dmg_percent": {
+                "description": "Increases damage from status effects (PSI-based keywords)",
+                "legendary_max": 0.06,
+                "notes": "Affects Burn, Frost Vortex, Power Surge, Unstable Bomber"
+            }
+        },
+        "defensive": {
+            "max_hp_percent": {
+                "description": "Increases maximum HP",
+                "example_value": 0.12,
+                "notes": "Common survivability stat"
+            },
+            "dmg_reduction_percent": {
+                "description": "Reduces incoming damage",
+                "notes": "Found on defensive mods"
+            }
+        },
+        "utility": {
+            "reload_speed_percent": {
+                "description": "Increases reload speed",
+                "notes": "Affects weapon handling"
+            },
+            "fire_rate_percent": {
+                "description": "Increases rate of fire",
+                "notes": "Affects DPS"
+            },
+            "magazine_size_percent": {
+                "description": "Increases magazine capacity",
+                "notes": "Affects sustained fire"
+            }
+        }
+    },
+    "armor": {
+        "_documentation": "Post-2.3.1: Calibration system removed. Stats determined by rarity and star level (enhancement). All pieces of same slot/rarity/stars share identical base stats regardless of set or specific piece name.",
+        "base_stats": {
+            "_note": "Values shown are Tier V (max tier). Key = star level (1-6 for enhancement). Access as: armor.base_stats.{slot}.{rarity}.{stars}",
+            "mask": {
+                "legendary": {
+                    "6": {
+                        "hp": 462,
+                        "pollution_resist": 16,
+                        "psi_intensity": 144
+                    }
+                },
+                "epic": {
+                    "6": {
+                        "hp": 406,
+                        "pollution_resist": 16,
+                        "psi_intensity": 127
+                    }
+                }
+            },
+            "helmet": {
+                "legendary": {
+                    "6": {
+                        "hp": 925,
+                        "pollution_resist": 12,
+                        "psi_intensity": 115
+                    }
+                },
+                "epic": {
+                    "6": {
+                        "hp": 813,
+                        "pollution_resist": 12,
+                        "psi_intensity": 101
+                    }
+                }
+            },
+            "top": {
+                "legendary": {
+                    "6": {
+                        "hp": 2405,
+                        "pollution_resist": 16,
+                        "psi_intensity": 80
+                    }
+                },
+                "epic": {
+                    "6": {
+                        "hp": 2113,
+                        "pollution_resist": 16,
+                        "psi_intensity": 71
+                    }
+                }
+            },
+            "bottoms": {
+                "legendary": {
+                    "6": {
+                        "hp": 2220,
+                        "pollution_resist": 12,
+                        "psi_intensity": 92
+                    }
+                },
+                "epic": {
+                    "6": {
+                        "hp": 1950,
+                        "pollution_resist": 12,
+                        "psi_intensity": 81
+                    }
+                }
+            },
+            "gloves": {
+                "legendary": {
+                    "6": {
+                        "hp": 1388,
+                        "pollution_resist": 12,
+                        "psi_intensity": 86
+                    }
+                },
+                "epic": {
+                    "6": {
+                        "hp": 1219,
+                        "pollution_resist": 12,
+                        "psi_intensity": 76
+                    }
+                }
+            },
+            "shoes": {
+                "legendary": {
+                    "6": {
+                        "hp": 1850,
+                        "pollution_resist": 12,
+                        "psi_intensity": 58
+                    }
+                },
+                "epic": {
+                    "6": {
+                        "hp": 1625,
+                        "pollution_resist": 12,
+                        "psi_intensity": 50
+                    }
+                }
+            }
+        },
+        "mod_slots": {
+            "_documentation": "Each armor piece has ONE armor mod slot. Weapon mods are separate and go on weapons only.",
+            "mask": 1,
+            "helmet": 1,
+            "top": 1,
+            "bottoms": 1,
+            "gloves": 1,
+            "shoes": 1
+        }
+    },
+    "armor_sets": {
+        "_documentation": "Set bonuses activate at 4 pieces equipped. All sets require (0/4) pieces as shown in-game.",
+        "lonewolf": {
+            "name": "Lonewolf Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "stat": "Magazine Capacity Bonus",
+                    "value": 0.10
+                },
+                "2": {
+                    "stat": "Crit Rate",
+                    "value": 0.05
+                },
+                "3": {
+                    "effect": "After landing 2 critical weapon hits, gain 1 stack of Lone Shadow. Lone Shadow grants Crit DMG +6% for 30s. Max stacks: 8."
+                },
+                "4": {
+                    "effect": "Increase max Lone Shadow stacks to 10. Crit Rate +8% for 2s after reloading."
+                }
+            }
+        },
+        "savior": {
+            "name": "Savior Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "stat": "Medicine Cooldown Haste",
+                    "value": 0.2
+                },
+                "2": {
+                    "effect": "While shielded, Weapon DMG and Status DMG dealt increases by +10%."
+                },
+                "3": {
+                    "effect": "Consumes 8% of current HP upon hit to generate a temporary shield equal to 5% of Max HP, lasting 30s (Cooldown: 0.5s). When shield exceeds 40%, hits landed will refresh shield duration and damage boost timer without deducting HP. When HP is consumed, Weapon and Status DMG +5%, stacking up to 4 stack(s), lasting 12s."
+                },
+                "4": {
+                    "effect": "Automatically uses the least potent treatment in the backpack when HP is below 30% (Cooldown: 40s)."
+                }
+            }
+        },
+        "treacherous_tides": {
+            "name": "Treacherous Tides Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "stat": "Weapon DMG Reduction",
+                    "value": 0.10
+                },
+                "2": {
+                    "effect": "When HP is below 70%, weapon and Status DMG +12%."
+                },
+                "3": {
+                    "effect": "The HP reduction from low Sanity is decreased by 40%. Weapon and Status DMG +10% and further increases as your Sanity drops, up to +28% at 30% max Sanity."
+                },
+                "4": {
+                    "effect": "Generates a shield equal to 20% of Max HP when HP is below 40% of the Max. Cooldown: 8s."
+                }
+            }
+        },
+        "renegade": {
+            "name": "Renegade Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "stat": "Reload Speed",
+                    "value": 0.10
+                },
+                "2": {
+                    "stat": "Weakspot DMG",
+                    "value": 0.10
+                },
+                "3": {
+                    "effect": "Gain 1 stack of Archer's Focus upon hitting the same enemy consecutively. Archer's Focus: Weakspot DMG +4%, stacking up to 10 stacks. Archer's Focus stacks are halved upon changing targets."
+                },
+                "4": {
+                    "effect": "When reloading, for every 1% of weakspot hit from the previous magazine, load an extra 0.6% bullets, up to 30%."
+                }
+            }
+        },
+        "shelterer": {
+            "name": "Shelterer Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "stat": "Status DMG Reduction",
+                    "value": 0.15
+                },
+                "2": {
+                    "stat": "Elemental DMG (Blaze, Frost, Shock, Blast)",
+                    "value": 0.08
+                },
+                "3": {
+                    "effect": "Each weapon hit grants 1 stack of Deviant Energy. Every stack grants +1% Elemental DMG (Blaze, Frost, Shock, Flammable). Effect can stack up to 20 stacks. Reloading removes half of the total stacks."
+                },
+                "4": {
+                    "effect": "Increase max Deviant Energy stack by 10. Grant 2 additional stacks when hitting a weakspot."
+                }
+            }
+        },
+        "bastille": {
+            "name": "Bastille Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "effect": "Weapon DMG +10% when HP is above 70%."
+                },
+                "2": {
+                    "stat": "Reload Speed",
+                    "value": 0.15
+                },
+                "3": {
+                    "effect": "Stay crouched and immobile for 0.5s to enter the Bastille state. While in the Bastille state, gain Weapon DMG +40%. After exiting the Bastille state, you cannot sprint and your Stamina consumption is increased by +100% for 3s."
+                },
+                "4": {
+                    "effect": "3s after exiting Bastille state, gain 1 stack of Armor per second, up to 60 stacks. While in Bastille state, each stack of Armor provides a Shield equal to 1% of max HP."
+                }
+            }
+        },
+        "stormweaver": {
+            "name": "Stormweaver Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "stat": "Roll Stamina Cost",
+                    "value": -0.20
+                },
+                "2": {
+                    "stat": "Magazine Capacity Bonus",
+                    "value": 0.15
+                },
+                "3": {
+                    "effect": "Taking DMG grants a stack of Powered Armor, DMG Reduction +4% for 10s. Effect can stack up to 6 stacks."
+                },
+                "4": {
+                    "effect": "Rolling consumes 3 stacks of Powered Armor and triggers an explosion that knocks back surrounding enemies. For each enemy hit, HP +5%, up to +20% (cooldown: 10s)."
+                }
+            }
+        },
+        "agent": {
+            "name": "Agent Set",
+            "rarity": "epic",
+            "bonuses": {
+                "1": {
+                    "stat": "Head DMG Reduction",
+                    "value": 0.10
+                },
+                "2": {
+                    "stat": "Weakspot DMG",
+                    "value": 0.10
+                },
+                "3": {
+                    "effect": "Gain Bullet Saver effect with every precise kill, Weakspot DMG +15% for 8s. Effect can stack up to 3 stacks."
+                },
+                "4": {
+                    "effect": "Reload Efficiency +20% after defeating a target. Fire Rate +10% when killing with a Weakspot hit. Effect removed when reloading or switching weapons."
+                }
+            }
+        },
+        "heavy_duty": {
+            "name": "Heavy Duty Set",
+            "rarity": "epic",
+            "bonuses": {
+                "1": {
+                    "stat": "HP Bonus",
+                    "value": 0.10
+                },
+                "2": {
+                    "stat": "Elemental DMG (Blaze, Frost, Shock, Blast)",
+                    "value": 0.08
+                },
+                "3": {
+                    "effect": "After killing an enemy, increase Movement Speed by 20% for 2s and Elemental DMG (Blaze, Frost, Shock, Blast) by 40%, decay over 8s."
+                },
+                "4": {
+                    "effect": "Within 5m, each enemy grants you DMG Reduction +4%. Effect can stack up to 4 stacks."
+                }
+            }
+        },
+        "falcon": {
+            "name": "Falcon Set",
+            "rarity": "epic",
+            "bonuses": {
+                "1": {
+                    "stat": "Roll Stamina Cost",
+                    "value": -0.20
+                },
+                "2": {
+                    "stat": "Crit DMG",
+                    "value": 0.12
+                },
+                "3": {
+                    "effect": "When Stamina is above 90%, Crit Rate +5%, Crit DMG +20%."
+                },
+                "4": {
+                    "effect": "Max Stamina +25. Recover 30 Stamina instantly with a kill."
+                }
+            }
+        },
+        "snow_panther": {
+            "name": "Snow Panther Set",
+            "rarity": "epic",
+            "bonuses": {
+                "1": {
+                    "stat": "Torso DMG Reduction",
+                    "value": 0.10
+                },
+                "2": {
+                    "effect": "Melee, Status, and Weapon DMG +8% when a ally player is within 10 meters or within allied Territory."
+                },
+                "3": {
+                    "effect": "When you are within allied territory and help defeat an enemy, Melee, Status, and Weapon DMG +8% for 10 seconds, stacking up to 3 stacks."
+                },
+                "4": {
+                    "effect": "When within allied territory, sentry turrets within a 7-meter radius deal +50% more DMG."
+                }
+            }
+        },
+        "dark_resonance": {
+            "name": "Dark Resonance Set",
+            "rarity": "legendary",
+            "bonuses": {
+                "1": {
+                    "effect": "Using ultimate grants 10% temporary Shield for 10 seconds."
+                },
+                "2": {
+                    "effect": "When Deviant Power is not full, Weapon and Status DMG +12%."
+                },
+                "3": {
+                    "effect": "For every 1 Energy consumed, gain +0.6%, up to +30%."
+                },
+                "4": {
+                    "effect": "Consumes 30 Deviant Power when using Battle Skill, reduces cooldown by 50%."
+                }
+            }
+        }
+    },
+    "key_armor": {
+        "_documentation": "Key Armor pieces have unique effects beyond standard armor. Only 1 equippable per loadout. Obtained from Wish Machine or special sources. Base stats follow general armor rules (see armor.base_stats) - only unique effects listed here.",
+        "masks": [
+            {
+                "name": "Oasis Mask FRAG",
+                "rarity": "legendary",
+                "keyword": "Fast Gunner",
+                "unique_effects": [
+                    "Fast Gunner max stacks 10",
+                    "Attack +1% per stack"
+                ]
+            },
+            {
+                "name": "Dust Mask",
+                "rarity": "legendary",
+                "keyword": "Fast Gunner",
+                "unique_effects": [
+                    "When triggering Fast Gunner, there is a 70% chance to automatically reload 1 bullet(s) with Attack +20%"
+                ]
+            },
+            {
+                "name": "Gas-tight Helmet",
+                "rarity": "legendary",
+                "keyword": "Shrapnel",
+                "unique_effects": [
+                    "Limit the maximum hit parts of Shrapnel to 1",
+                    "Shrapnel DMG Coefficient +150%"
+                ],
+                "damage_bucket": "final",
+                "notes": "THE GASTON HELMET - Confirmed +150% is a separate Final multiplier"
+            },
+            {
+                "name": "Cage Helmet B.P.",
+                "rarity": "legendary",
+                "keyword": "Shrapnel",
+                "unique_effects": [
+                    "When triggering Shrapnel, additionally triggers 1 times"
+                ]
+            },
+            {
+                "name": "Viper Mask B.P.",
+                "rarity": "legendary",
+                "keyword": "Unstable Bomber",
+                "unique_effects": [
+                    "Unstable Bomber's range +50%",
+                    "For every 2% Unstable Bomber range bonus, Unstable Bomber DMG coefficient +1%"
+                ]
+            },
+            {
+                "name": "Gas Mask Hood B.P.",
+                "rarity": "legendary",
+                "keyword": "Power Surge",
+                "unique_effects": [
+                    "After triggering Power Surge, Crit Rate +35%, Power Surge DMG Coefficient +15%, lasting 6s"
+                ]
+            },
+            {
+                "name": "Yellow Paint Mask B.P.",
+                "rarity": "legendary",
+                "keyword": "Power Surge",
+                "unique_effects": [
+                    "Defeating enemies will generate EMP, dealing Power Surge 1 time to enemies in the area"
+                ]
+            },
+            {
+                "name": "Beret B.P.",
+                "rarity": "epic",
+                "keyword": "Shrapnel",
+                "unique_effects": [
+                    "Shrapnel hit parts +1"
+                ]
+            },
+            {
+                "name": "Mayfly Goggles B.P.",
+                "rarity": "epic",
+                "keyword": "Power Surge",
+                "unique_effects": [
+                    "When triggering Power Surge, additionally triggers 1 times",
+                    "Power Surge DMG Coefficient -30%"
+                ],
+                "notes": "Tradeoff: more procs but less damage per proc"
+            }
+        ],
+        "tops": [
+            {
+                "name": "Charmed Mag Top B.P.",
+                "rarity": "legendary",
+                "keyword": "Fast Gunner",
+                "unique_effects": [
+                    "When in Fast Gunner status, the lower the Player's current ammo, the higher the chance to trigger an extra bullet when firing. Maximum chance is 40%"
+                ]
+            },
+            {
+                "name": "Explosive Front Top B.P.",
+                "rarity": "legendary",
+                "keyword": "Unstable Bomber",
+                "unique_effects": [
+                    "Unstable Bomber detonation delay +0.3s",
+                    "Unstable Bomber DMG multiplier +30%"
+                ]
+            },
+            {
+                "name": "Snowdrift Top B.P.",
+                "rarity": "legendary",
+                "keyword": "Frost Vortex",
+                "unique_effects": [
+                    "When picking up Deviant Particles, gains an additional charge stack, and Weapon and Status DMG +25% for 25s"
+                ]
+            },
+            {
+                "name": "Covert Walker Shirt B.P.",
+                "rarity": "legendary",
+                "keyword": "Frost Vortex",
+                "unique_effects": [
+                    "Frost Vortex collapses in the center, continuously pulling enemies within 1.5x the range of Frost Vortex (now pulls Players instead of applying strong control effects)"
+                ]
+            },
+            {
+                "name": "Shaman Vulture Top B.P.",
+                "rarity": "legendary",
+                "keyword": "Unstable Bomber",
+                "unique_effects": [
+                    "After triggering Unstable Bomber, Crit Rate +35% for 3s"
+                ]
+            },
+            {
+                "name": "Sleek Leather Jacket B.P.",
+                "rarity": "epic",
+                "keyword": "Unstable Bomber",
+                "unique_effects": [
+                    "For every 1m distance between the Player and the Unstable Bomber trigger point, Unstable Bomber Final DMG +2%"
+                ],
+                "damage_bucket": "final",
+                "notes": "CONFIRMED FINAL BUCKET - scales with distance"
+            },
+            {
+                "name": "Frost Tactical Vest B.P.",
+                "rarity": "epic",
+                "keyword": "Frost Vortex",
+                "unique_effects": [
+                    "When Frost Vortex is created, additional Ice Spikes are generated, dealing Frost DMG equal to 120% Psi Intensity within a certain area"
+                ]
+            },
+            {
+                "name": "Doyen's Cloak FRAG",
+                "rarity": "legendary",
+                "keyword": "Frost Vortex",
+                "unique_effects": [
+                    "When the Frozen effect on an objective ends, it takes Frost DMG equal to 50% of the total DMG dealt to it during the Frozen duration"
+                ]
+            }
+        ],
+        "bottoms": [
+            {
+                "name": "Overloaded Pants B.P.",
+                "rarity": "legendary",
+                "keyword": "Power Surge",
+                "unique_effects": [
+                    "After triggering Power Surge for 20 time(s), the next 6 shot(s) will consume reserve ammo directly, and Shock Elemental DMG +20%. Cooldown: 4s",
+                    "Triggering Power Surge during the cooldown does not count toward this effect"
+                ]
+            },
+            {
+                "name": "Sharp Blade Pants B.P.",
+                "rarity": "legendary",
+                "keyword": "Bounce",
+                "unique_effects": [
+                    "When triggering Bounce, additionally trigger 1 more times"
+                ]
+            },
+            {
+                "name": "Hot Dog Shorts B.P.",
+                "rarity": "epic",
+                "keyword": "Bounce",
+                "unique_effects": [
+                    "Bounce Count +2"
+                ]
+            },
+            {
+                "name": "Tattoo Pants B.P.",
+                "rarity": "legendary",
+                "keyword": "Bounce",
+                "unique_effects": [
+                    "Bounce can hit allies without dealing DMG, with a 70% chance to automatically refill 1 bullet(s)"
+                ]
+            }
+        ],
+        "gloves": [
+            {
+                "name": "Gilded Gloves",
+                "rarity": "legendary",
+                "keyword": "Burn",
+                "unique_effects": [
+                    "Unlocks the Crit Hit ability for Burn (can utilize character's Crit Rate)",
+                    "Burn Crit DMG +20%"
+                ]
+            },
+            {
+                "name": "Hardy Gloves B.P.",
+                "rarity": "legendary",
+                "keyword": "Burn",
+                "unique_effects": [
+                    "When Burn reaches max stacks, remove Burn and trigger an Explosion, dealing 300% Hyper-sensitive Blaze DMG in a small area"
+                ]
+            },
+            {
+                "name": "BBQ Gloves B.P.",
+                "rarity": "epic",
+                "keyword": "Burn",
+                "unique_effects": [
+                    "Gain Burn frequency increase based on Burn stacks, up to 100%"
+                ]
+            }
+        ],
+        "shoes": [
+            {
+                "name": "Fire Rune Boots B.P.",
+                "rarity": "legendary",
+                "keyword": "Burn",
+                "unique_effects": [
+                    "When any target nearby is inflicted with Burn, there's a 50% chance to generate a Deviant Particle. Picking it up increases Blaze DMG +30% for 15s"
+                ]
+            },
+            {
+                "name": "Hard Tactical Boots FRAG",
+                "rarity": "legendary",
+                "keyword": "Fortress Warfare",
+                "unique_effects": [
+                    "Automatically refill 1 bullet(s) and Fire Rate +15% while in Fortress Warfare"
+                ]
+            },
+            {
+                "name": "Bloodstained Tracker Boots B.P.",
+                "rarity": "legendary",
+                "keyword": "The Bull's Eye",
+                "unique_effects": [
+                    "When applying The Bull's Eye to an objective already marked by The Bull's Eye, your Attack +20% for 5s, and The Bull's Eye spreads to one other nearby objective"
+                ]
+            },
+            {
+                "name": "Leather Boots B.P.",
+                "rarity": "epic",
+                "keyword": "Fortress Warfare",
+                "unique_effects": [
+                    "Recover 2.5% HP per second and recovery doubles when HP is below 50% while in Fortress Warfare"
+                ]
+            },
+            {
+                "name": "Earthly Boots B.P.",
+                "rarity": "epic",
+                "keyword": "The Bull's Eye",
+                "unique_effects": [
+                    "Additional DMG +30% to enemies under The Bull's Eye"
+                ]
+            },
+            {
+                "name": "Cowboy Boots B.P.",
+                "rarity": "legendary",
+                "keyword": "Fortress Warfare",
+                "unique_effects": [
+                    "Fortress Warfare only affects self",
+                    "When in Fortress Warfare, Attack +25%"
+                ]
+            },
+            {
+                "name": "Tactical Combat Shoes B.P.",
+                "rarity": "legendary",
+                "keyword": "The Bull's Eye",
+                "unique_effects": [
+                    "When hitting a target marked by The Bull's Eye, there is a 40% chance to automatically refill 1 bullet(s) and restore 1% of lost HP"
+                ]
+            },
+            {
+                "name": "Old Huntsman Boots B.P.",
+                "rarity": "legendary",
+                "keyword": "The Bull's Eye",
+                "unique_effects": [
+                    "After marking the objective with The Bull's Eye, the next 1 bullet(s) hitting a marked target will count as Weakspot hits",
+                    "Weakspot DMG +30% to enemies affected by The Bull's Eye"
+                ]
+            },
+            {
+                "name": "Pivot Step Leather Boots",
+                "rarity": "legendary",
+                "keyword": "Deviation",
+                "unique_effects": [
+                    "Resets Battle Skill cooldown after using Deviation Ultimate"
+                ]
+            }
+        ]
+    },
+    "weapons": {
+        "_documentation": "Blueprint weapons with unique keyword mechanics. Stats shown are Tier V, 1-star. Base stats follow weapon type rules. Innate bonuses listed are weapon-specific (only some are added, most need to be extracted from textual context of unique_effects).",
+        "crossbows": [
+            {
+                "name": "Critical Pulse B.P.",
+                "type": "Crossbow",
+                "keyword": "Power Surge",
+                "base_stats": {
+                    "dmg": 1812,
+                    "fire_rate": 90,
+                    "mag": 1,
+                    "crit_rate": 0.02,
+                    "crit_dmg": 0.28,
+                    "weakspot_dmg": 0.70
+                },
+                "innate_bonuses": {
+                    "shock_element_dmg": 0.30
+                },
+                "unique_effects": [
+                    "When the gun hits, it applies continuous Power Surge to the target, with a 70% chance to generate Deviant Particles near the player (pick them up to enter a Charging state)",
+                    "Continuous Power Surge triggers Power Surgeon the current target every 0.5s. Higher stacks reduce the trigger interval (minimum 0.26s), lasting 3s, stacking up to 5 stacks (40% DMG against Metas)",
+                    "When the gun hits, it consumes one charge to deal Shock Element Status DMG of 75% Psi Intensity to targets within 5m every 0.5s for 3s (benefits from Power Surge DMG bonus). This damage has a 5% chance to generate Deviant Particles (25% DMG against Metas)"
+                ]
+            },
+            {
+                "name": "Compound Bow B.P.",
+                "type": "Crossbow",
+                "keyword": "Unstable Bomber",
+                "base_stats": {
+                    "dmg": 1812,
+                    "fire_rate": 90,
+                    "mag": 1,
+                    "crit_rate": 0.02,
+                    "crit_dmg": 0.28,
+                    "weakspot_dmg": 0.70
+                },
+                "innate_bonuses": {
+                    "unstable_bomber_dmg": 0.30
+                },
+                "unique_effects": [
+                    "Hitting a target grants a buff, increasing Crit Rate +40% for 5s. Cooldown: 10s. Switching weapons removes the buff",
+                    "When a weapon shot crits, triggers Unstable Bomber, and the bomb can crit (using the character's Crit Rate)",
+                    "Unstable Bomber DMG +30%"
+                ]
+            }
+        ],
+        "sniper_rifles": [
+            {
+                "name": "HAMR - Brahminy B.P.",
+                "type": "Sniper Rifle",
+                "keyword": "Bounce",
+                "base_stats": {
+                    "dmg": 1277,
+                    "fire_rate": 85,
+                    "mag": 8,
+                    "crit_rate": 0.02,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.80
+                },
+                "unique_effects": [
+                    "When the weapon hits a target, there is a 75% chance to trigger Bounce (dealing 35% Bounce DMG to Metas)",
+                    "Bounce count +2",
+                    "Unlocks the hitting scene to trigger Bounce ability, with DMG reduced by 30% (reduced by 95% if the target is a Meta)",
+                    "Bounce weakspot weight +100%"
+                ]
+            },
+            {
+                "name": "AWS.338 - Bullseye B.P.",
+                "type": "Sniper Rifle",
+                "keyword": "The Bull's Eye",
+                "base_stats": {
+                    "dmg": 1848,
+                    "fire_rate": 40,
+                    "mag": 5,
+                    "crit_rate": 0.02,
+                    "crit_dmg": 0.26,
+                    "weakspot_dmg": 0.95
+                },
+                "unique_effects": [
+                    "When hitting a Weakspot with a weapon, there is a 70% chance to apply The Bull's Eye to the target. Within 8 meters, this chance increases to 80%",
+                    "After switching weapons, the first weapon hit will apply The Bull's Eye to the target",
+                    "After hitting a non-Meta-Human unit with a weapon, Weakspot DMG +25% for 10 seconds, stacking up to 4 stacks. Switching weapons removes half the stacks",
+                    "After defeating a non-Meta-Human unit with a Weakspot shot, Attack +15% for 20 seconds"
+                ]
+            },
+            {
+                "name": "SKS - Pathfinder B.P.",
+                "type": "Sniper Rifle",
+                "keyword": "Frost Vortex",
+                "base_stats": {
+                    "dmg": 547,
+                    "fire_rate": 257,
+                    "mag": 20,
+                    "crit_rate": 0.05,
+                    "crit_dmg": 0.40,
+                    "weakspot_dmg": 0.50
+                },
+                "innate_bonuses": {
+                    "frost_element_dmg": 0.30
+                },
+                "unique_effects": [
+                    "When the weapon hits a target, triggers Frost Vortex, cooldown 5s, each hit reduces cooldown by 1s",
+                    "60% chance to generate Deviant Particles (picking them up enters Charging state), max Charging state stacks +10",
+                    "Can consume charges for a charged shot, firing a penetrating ice spike dealing damage equal to 110% of Attack as Frost Elemental Status DMG (benefits from Frost Vortex DMG Boost, deals 20% Frost Vortex Elemental DMG to Metas)",
+                    "Frost Elemental DMG +30%, after a charged shot, Frost Elemental DMG increases by 8%, lasting 15s, stacks up to 3 stacks"
+                ]
+            },
+            {
+                "name": "EBR-14: Octopus! Grilled Rings!",
+                "type": "Sniper Rifle",
+                "keyword": "Burn",
+                "base_stats": {
+                    "dmg": 471,
+                    "fire_rate": 300,
+                    "mag": 20,
+                    "crit_rate": 0.05,
+                    "crit_dmg": 0.40,
+                    "weakspot_dmg": 0.50
+                },
+                "innate_bonuses": {
+                    "burn_dmg": 0.75,
+                    "max_burn_stacks": -3,
+                    "burn_trigger_chance": 0.50,
+                    "burn_crit_rate": 0.20,
+                    "burn_crit_dmg": 0.20
+                },
+                "unique_effects": [
+                    "When the weapon hits a target, 50% chance to apply burn to target",
+                    "At max stacks, Burn targets generate a fire ring, spreading Burn DMG to enemies within 6 meters at Burn frequency",
+                    "Burn DMG +75%, max Burn stacks -3",
+                    "Burn crit rate and Burn crit DMG +20%"
+                ]
+            }
+        ],
+        "smgs": [
+            {
+                "name": "MPS5: Primal Rage",
+                "type": "Submachine Gun",
+                "keyword": "Fast Gunner",
+                "base_stats": {
+                    "dmg": 216,
+                    "fire_rate": 750,
+                    "mag": 30,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.55
+                },
+                "unique_effects": [
+                    "When a weapon hits a target, there is a 35% chance to trigger Fast Gunner",
+                    "Consuming 1% of max HP. When the current magazine has 1 bullets remaining, shoot reserve ammo (non-lethal)",
+                    "When a weapon hits a target, restore 0.1% Fast Gunner stacks of lost HP",
+                    "When HP changes by 1%, weapon DMG increases by +1% for 5 seconds. Each stack has an independent timer and can stack up to 80 stacks"
+                ]
+            },
+            {
+                "name": "PDW90: Holographic Resonance",
+                "type": "Submachine Gun",
+                "keyword": "The Bull's Eye",
+                "base_stats": {
+                    "dmg": 137,
+                    "fire_rate": 900,
+                    "mag": 50,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.45,
+                    "weakspot_dmg": 0.30
+                },
+                "unique_effects": [
+                    "On hit, 20% chance to apply The Bull's Eye",
+                    "Every 12 hits, triggers AoE DMG dealing Weapon DMG equal to 800% attack to enemies within an 8000m radius (damage against Metas 30%)",
+                    "When hitting targets with The Bull's Eye with AoE DMG, reloads 3% ammo, up to 15% per instance",
+                    "Crit Rate +20% against targets under The Bull's Eye status"
+                ]
+            },
+            {
+                "name": "KV-SBR: Little Jaws",
+                "type": "Submachine Gun",
+                "keyword": "Unstable Bomber",
+                "base_stats": {
+                    "dmg": 167,
+                    "fire_rate": 1000,
+                    "mag": 30,
+                    "crit_rate": 0.10,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.45
+                },
+                "innate_bonuses": {
+                    "unstable_bomber_dmg": 0.15
+                },
+                "unique_effects": [
+                    "When the weapon hits, it triggers Unstable Bomber, with a 0.9s cooldown (deals 40% damage against Meta-Humans)",
+                    "Unstable Bomber delay +0.2s",
+                    "Each time an enemy affected by Unstable Bomber is hit, the current Unstable Bomber Final DMG +20%",
+                    "For every +0.1s of Unstable Bomber delay, Unstable Bomber DMG +15%"
+                ],
+                "damage_bucket_notes": "CONFIRMED FINAL BUCKET: +20% per hit is Final DMG"
+            },
+            {
+                "name": "MPS7: Outer Space",
+                "type": "Submachine Gun",
+                "keyword": "Power Surge",
+                "base_stats": {
+                    "dmg": 240,
+                    "fire_rate": 850,
+                    "mag": 35,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.28,
+                    "weakspot_dmg": 0.55
+                },
+                "innate_bonuses": {
+                    "shock_element_dmg": 0.30
+                },
+                "unique_effects": [
+                    "When the weapon hits, there is a 30% chance to apply Power Surge to the target",
+                    "Upon hitting a target affected by Power Surge 12 time(s), summon lightning at the target's location, dealing 500% Shock Elemental DMG based on Psi Intensity (40% DMG against Meta-Humans)",
+                    "After reloading, the weapon gains a Power Surge bonus +40% for 8 seconds"
+                ]
+            },
+            {
+                "name": "MPS5: Kumawink",
+                "type": "Submachine Gun",
+                "keyword": "Bounce",
+                "base_stats": {
+                    "dmg": 216,
+                    "fire_rate": 750,
+                    "mag": 30,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.55
+                },
+                "unique_effects": [
+                    "When the weapon hits a target, there is a 25% chance to trigger Bounce",
+                    "When Bounce hits, triggers a ricochet, dealing 100% of Bounce damage to the target that triggered Bounce",
+                    "After reloading, can additionally trigger 1 instances of Bounce when Bounce is activated, lasting 6 seconds. Removed upon weapon swap",
+                    "Bounce damage multiplier +75%, single Bounce target +3"
+                ]
+            },
+            {
+                "name": "TEC9: Additional Rules",
+                "type": "Submachine Gun",
+                "keyword": "Fortress Warfare",
+                "base_stats": {
+                    "dmg": 359,
+                    "fire_rate": 450,
+                    "mag": 30,
+                    "crit_rate": 0.10,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.45
+                },
+                "unique_effects": [
+                    "When shooting hits a target, trigger Fortress Warfare, with a cooldown of 10 seconds",
+                    "After using Deviant skill, bullets deal 120% Attack as Elemental Status DMG (type depends on the Deviation)",
+                    "Reloading an empty magazine restores 25% magazine capacity as Deviant Power, up to a maximum of 20 points per reload",
+                    "In Fortress state, Crit Rate +15%"
+                ]
+            }
+        ],
+        "lmgs": [
+            {
+                "name": "KVD: Boom! Boom!",
+                "type": "Light Machine Gun",
+                "keyword": "Burn",
+                "base_stats": {
+                    "dmg": 255,
+                    "fire_rate": 500,
+                    "mag": 100,
+                    "crit_rate": 0.10,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.40
+                },
+                "innate_bonuses": {
+                    "blaze_element_dmg": 0.30
+                },
+                "unique_effects": [
+                    "When the weapon hits, 18% chance to apply Burn to the target",
+                    "When hitting a target, it triggers an explosion, dealing 300% Psi Intensity Blaze DMG to enemies within a 5 meter radius of the target, with a cooldown of 2 seconds (deals 40% DMG to Meta-Humans)",
+                    "This explosion will apply 1 stack(s) of Burn to non-Meta-Human units"
+                ]
+            },
+            {
+                "name": "MG4: Conflicting Memories",
+                "type": "Light Machine Gun",
+                "keyword": "Shrapnel",
+                "base_stats": {
+                    "dmg": 188,
+                    "fire_rate": 700,
+                    "mag": 75,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.35
+                },
+                "unique_effects": [
+                    "Trigger Shrapnel after hitting the target 12 time(s) (deals 60% Shrapnel DMG to Metas)",
+                    "For every 25 rounds in the magazine, Shrapnel triggers on 1 additional body part(s), up to 6",
+                    "If magazine capacity exceeds 90 rounds, for every additional 15 rounds, Shrapnel multiplier +10%",
+                    "Magazine capacity +40"
+                ]
+            }
+        ],
+        "shotguns": [
+            {
+                "name": "ACS12: Corrosion B.P.",
+                "type": "Shotgun",
+                "keyword": "Power Surge",
+                "base_stats": {
+                    "dmg": "210x5",
+                    "dmg_per_projectile": 210,
+                    "projectile_count": 5,
+                    "damage_per_shot": 1050,
+                    "fire_rate": 180,
+                    "mag": 18,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.27,
+                    "weakspot_dmg": 0.15
+                },
+                "innate_bonuses": {
+                    "power_surge_factor": 0.15
+                },
+                "unique_effects": [
+                    "When a weapon hits, there is a 80% chance to trigger Power Surge, but it will no longer inflict Power Surge status on non-Meta-Human units",
+                    "Unlocks the ability for Power Surge to deal Crit Hits, Power Surge Crit Rate +25% (stacks with character Crit Rate)",
+                    "After triggering Power Surge against non-Meta-Human units, Power Surge Crit DMG +40% for 6 seconds, stackable up to 5 times",
+                    "Power Surge DMG Factor +15%"
+                ],
+                "damage_bucket_notes": "CONFIRMED FACTOR: +15% is Factor bucket"
+            },
+            {
+                "name": "DBSG: Doombringer",
+                "type": "Shotgun",
+                "keyword": "The Bull's Eye",
+                "base_stats": {
+                    "dmg": "362x6",
+                    "fire_rate": 180,
+                    "mag": 2,
+                    "crit_rate": 0.10,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.25
+                },
+                "innate_bonuses": {
+                    "crit_rate_vs_marked": 0.30
+                },
+                "unique_effects": [
+                    "When the weapon hits, there is a 30% chance to apply The Bull's Eye to the target. Within 8 meters, this chance increases to 80%",
+                    "When all bullets hit a non-Metas unit under The Bull's Eye status, Attack +12%, Reload Efficiency +8% for 15 seconds, stackable up to 3 layers",
+                    "After applying The Bull's Eye to the target, DMG Reduction +5% for 8 seconds, stackable up to 4 layers",
+                    "For targets under The Bull's Eye status, Crit Rate +30%"
+                ]
+            },
+            {
+                "name": "ACS12: Pyroclasm Starter",
+                "type": "Shotgun",
+                "keyword": "Burn",
+                "base_stats": {
+                    "dmg": "210x5",
+                    "dmg_per_projectile": 210,
+                    "projectile_count": 5,
+                    "damage_per_shot": 1050,
+                    "fire_rate": 180,
+                    "mag": 18,
+                    "crit_rate": 0.06,
+                    "crit_dmg": 0.27,
+                    "weakspot_dmg": 0.15
+                },
+                "innate_bonuses": {
+                    "blaze_dmg": 0.20
+                },
+                "unique_effects": [
+                    "When the weapon hits a target, 27% chance to apply Burn to the objective",
+                    "When the weapon hits a target, 20% chance to generate a Deviant Particle nearby (picking it up enters Charging state, lasting 60 seconds)",
+                    "When reloading, consumes all Charges and replaces ammunition with Dragon's Breath Rounds: Deals Blaze Elemental Status DMG equal to 95% of Attack (Burn DMG bonus applies)",
+                    "Blaze DMG +20%, gains additional increase when consuming Charges, +8% per stack, stackable up to 4 stacks until next reload"
+                ]
+            }
+        ],
+        "assault_rifles": [
+            {
+                "name": "M416: Silent Anabasis",
+                "type": "Assault Rifle",
+                "keyword": "Frost Vortex",
+                "base_stats": {
+                    "dmg": 192,
+                    "fire_rate": 750,
+                    "mag": 36,
+                    "crit_rate": 0.06,
+                    "crit_dmg": 0.27,
+                    "weakspot_dmg": 0.60
+                },
+                "innate_bonuses": {
+                    "frost_element_dmg": 0.30
+                },
+                "unique_effects": [
+                    "When the weapon hits, there is a 12% chance to trigger Frost Vortex",
+                    "When the weapon hits, it generates Ice Crystals with a cooldown of 1.5 seconds. The Ice Crystals last for 15 seconds (Ice Crystals deal 40% damage to Metas). Upon expiration, the Ice Crystals explode, dealing 100% Psi Intensity as Frost Vortex damage to nearby objectives",
+                    "Hitting an Ice Crystal with a weapon causes it to detonate prematurely, increasing the damage multiplier from 100% to 350%",
+                    "Frost Elemental DMG +30%. For each Ice Crystal shattered, Frost Elemental DMG gains an additional +8%, lasting 15 seconds, stacking up to 3 stacks"
+                ]
+            },
+            {
+                "name": "KAM: Abyss Glance",
+                "type": "Assault Rifle",
+                "keyword": "Frost Vortex",
+                "base_stats": {
+                    "dmg": 228,
+                    "fire_rate": 600,
+                    "mag": 50,
+                    "crit_rate": 0.06,
+                    "crit_dmg": 0.30,
+                    "weakspot_dmg": 0.55
+                },
+                "innate_bonuses": {
+                    "frost_element_dmg": 0.30
+                },
+                "unique_effects": [
+                    "When a weapon hits, trigger Frost Vortex with a cooldown of 7 seconds (Vortex triggered on Metas deals 30% damage)",
+                    "When a weapon hits, Frost Vortex cooldown reduction 0.5 seconds",
+                    "Hitting non-Metas units within Frost Vortex increases the final damage of Frost Vortex created by yourself by +5%, up to 10 stacks",
+                    "Frost Elemental DMG +30%, Frost Vortex damage frequency +100%"
+                ],
+                "damage_bucket_notes": "CONFIRMED FINAL: +5% per hit is Final DMG on Frost Vortex"
+            },
+            {
+                "name": "SOCR: The Last Valor",
+                "type": "Assault Rifle",
+                "keyword": "Shrapnel",
+                "base_stats": {
+                    "dmg": 264,
+                    "fire_rate": 515,
+                    "mag": 30,
+                    "crit_rate": 0.06,
+                    "crit_dmg": 0.27,
+                    "weakspot_dmg": 0.60
+                },
+                "innate_bonuses": {
+                    "shrapnel_crit_dmg": 0.30
+                },
+                "unique_effects": [
+                    "Trigger Shrapnel after hitting the target 12 time(s) (deals 60% Shrapnel DMG to Metas)",
+                    "For every 25 rounds in the magazine, the first weapon hit will apply The Bull's Eye to the target",
+                    "Hitting 4 times with the weapon triggers Shrapnel. When a weapon shot crits, it counts as 2 hits",
+                    "After a Crit Hit, triggering Shrapnel will additionally trigger 1 times, lasting 1s",
+                    "Shrapnel Crit DMG +30%"
+                ]
+            }
+        ],
+        "pistols": [
+            {
+                "name": "DE.50: Jaws",
+                "type": "Pistol",
+                "keyword": "Unstable Bomber",
+                "base_stats": {
+                    "dmg": 751,
+                    "fire_rate": 190,
+                    "mag": 9,
+                    "crit_rate": 0.06,
+                    "crit_dmg": 0.25,
+                    "weakspot_dmg": 0.60
+                },
+                "unique_effects": [
+                    "Every 3 weapon hits trigger Unstable Bomber. When a weapon shot crits, it counts as 2 hits",
+                    "When a weapon shot crits, there is a 30% chance to trigger Unstable Bomber",
+                    "Unlocks the crit capability for Unstable Bomber, increasing its Crit Rate by +35% (stacks with character's Crit Rate)"
+                ]
+            },
+            {
+                "name": "G17: Hazardous Object",
+                "type": "Pistol",
+                "keyword": "Unstable Bomber",
+                "base_stats": {
+                    "dmg": 350,
+                    "fire_rate": 410,
+                    "mag": 13,
+                    "crit_rate": 0.08,
+                    "crit_dmg": 0.28,
+                    "weakspot_dmg": 0.55
+                },
+                "unique_effects": [
+                    "Hitting enemies grants a 20% chance to trigger Unstable Bomber",
+                    "Reload action is replaced by throwing your weapon, consuming all ammo to deal Unstable Bomber DMG in a 3m radius (50% + consumed ammo × 18% of Psi Intensity, capping at 480%, dealing 28% DMG against Meta-Humans)",
+                    "Throwing the weapon grants 75% chance to recover 75% of consumed ammo, 25% chance to recover 25% of consumed ammo",
+                    "Unstable Bomber DMG and Range +10% for 10s each time Unstable Bomber deals damage, stacking up to 5 stacks"
+                ]
+            }
+        ]
+    },
+    "ammunition": {
+        "_documentation": "Ammo tier affects base damage and PSI intensity multipliers",
+        "tiers": {
+            "copper": {
+                "damage_multiplier": 1.00,
+                "psi_multiplier": 1.00,
+                "memetic_unlock": "Ammunition I"
+            },
+            "copper_ap": {
+                "damage_multiplier": 1.04,
+                "psi_multiplier": 1.04,
+                "memetic_unlock": "Advanced Ammunition I"
+            },
+            "steel": {
+                "damage_multiplier": 1.05,
+                "psi_multiplier": 1.05,
+                "memetic_unlock": "Ammunition II"
+            },
+            "steel_ap": {
+                "damage_multiplier": 1.08,
+                "psi_multiplier": 1.08,
+                "memetic_unlock": "Advanced Ammunition II"
+            },
+            "tungsten": {
+                "damage_multiplier": 1.10,
+                "psi_multiplier": 1.10,
+                "memetic_unlock": "Ammunition III"
+            },
+            "tungsten_ap": {
+                "damage_multiplier": 1.15,
+                "psi_multiplier": 1.15,
+                "memetic_unlock": "Advanced Ammunition III"
+            }
+        }
+    },
+    "damage_formula_system": {
+        "_documentation": {
+            "WARNING": "UNCERTAIN how accurate these representative formulas are. Take with grain of salt and validate yourself.",
+            "overview": "Once Human uses a two-bucket multiplicative system for keyword damage. Each keyword has its own Factor and Final buckets that multiply separately.",
+            "formula_template": "Base × (1 + Σ Factor_bonuses) × (1 + Σ Final_bonuses) × (other multipliers)",
+            "factor_vs_final": {
+                "factor_bucket": "Additive WITHIN bucket. Multiple +10% Factor bonuses = +20% total Factor. Common sources: keyword suffix mods, food buffs, some weapon innates.",
+                "final_bucket": "Additive WITHIN bucket, but MULTIPLICATIVE with Factor bucket. Rarer, typically from specific mods like 'Chain Bounce' or deviation skills. Higher marginal value when Factor is already stacked.",
+                "optimization_principle": "Diminishing returns within each bucket. Splitting investment between Factor and Final yields higher total damage than stacking one bucket."
+            },
+            "base_scaling_types": {
+                "attack_based": "Uses weapon Attack stat. Affected by Weapon DMG%, Crit DMG%, Weakspot DMG%. Keywords: Shrapnel, Bounce, Fast Gunner.",
+                "psi_based": "Uses armor PSI Intensity stat. Affected by Status DMG%, Elemental DMG%. Keywords: Burn, Frost Vortex, Power Surge, Unstable Bomber."
+            }
+        },
+        "keywords": {
+            "shrapnel": {
+                "name": "Shrapnel",
+                "base_source": "attack",
+                "keyword_factor": 0.50,
+                "formula": "0.50 × Attack × (1 + Shrapnel_Factor) × (1 + Shrapnel_Final)",
+                "factor_bucket": "shrapnel_dmg_factor",
+                "final_bucket": "shrapnel_final_dmg",
+                "can_crit": true,
+                "can_weakspot": true,
+                "distance_decay": true,
+                "element": "same_as_weapon",
+                "effect_description": "Hits deal +50% Attack as Weapon DMG to a random unhit body part",
+                "notes": "Particularly effective against large enemies with multiple hitboxes"
+            },
+            "bounce": {
+                "name": "Bounce",
+                "tag": "<Bullet Effect>",
+                "base_source": "attack",
+                "keyword_factor": 0.40,
+                "formula": "0.40 × Attack × (1 + Bounce_Factor) × (1 + Bounce_Final)",
+                "factor_bucket": "bounce_dmg_factor",
+                "final_bucket": "bounce_final_dmg",
+                "can_crit": true,
+                "can_weakspot": true,
+                "distance_decay": true,
+                "element": "same_as_weapon",
+                "effect_description": "Bullets ricochet to nearby enemies after hitting target",
+                "scaling_mods": {
+                    "chain_bounce(renamed to something else cant recall)": "+7.5% damage per bounce, up to +45% at 6 bounces",
+                    "boomerang_bullet": "+2% trigger chance per Bounce hit, stacks 10x for 5s"
+                }
+            },
+            "power_surge": {
+                "name": "Power Surge",
+                "tag": "<Instant DMG>",
+                "base_source": "psi_intensity",
+                "keyword_factor": 0.50,
+                "formula": "0.50 × PSI × (1 + PowerSurge_Factor) × (1 + PowerSurge_Final) × (1 + Status_DMG) × (1 + Shock_Elemental)",
+                "factor_bucket": "power_surge_dmg_factor",
+                "final_bucket": "power_surge_final_dmg",
+                "can_crit": false,
+                "can_weakspot": false,
+                "distance_decay": false,
+                "element": "shock",
+                "effect_description": "Instant shock damage + applies -40 Accuracy debuff for 6s",
+                "debuff": {
+                    "type": "accuracy_reduction",
+                    "value": -40,
+                    "duration_seconds": 6
+                }
+            },
+            "unstable_bomber": {
+                "name": "Unstable Bomber",
+                "tag": "<AOE DMG>",
+                "base_source": "psi_intensity",
+                "keyword_factor": 1.00,
+                "formula": "1.00 × PSI × (1 + UB_Factor) × (1 + UB_Final) × (1 + Status_DMG) × (1 + Blast_Elemental)",
+                "factor_bucket": "unstable_bomber_dmg_factor",
+                "final_bucket": "unstable_bomber_final_dmg",
+                "can_crit": false,
+                "can_weakspot": false,
+                "distance_decay": true,
+                "decay_minimum": 0.50,
+                "blast_radius_meters": 1.5,
+                "element": "blast",
+                "effect_description": "Triggers explosion after 0.1s dealing 100% PSI as Blast damage",
+                "trigger_delay_seconds": 0.1
+            },
+            "burn": {
+                "name": "Burn",
+                "tag": "<Continuous DMG>",
+                "base_source": "psi_intensity",
+                "keyword_factor": 0.12,
+                "formula": "0.12 × PSI × Stacks × (1 + Burn_Factor) × (1 + Burn_Final) × (1 + Status_DMG) × (1 + Blaze_Elemental)",
+                "factor_bucket": "burn_dmg_factor",
+                "final_bucket": "burn_final_dmg",
+                "can_crit": false,
+                "can_weakspot": false,
+                "distance_decay": false,
+                "element": "blaze",
+                "effect_description": "DoT dealing 12% PSI per stack every 0.5s for 6s",
+                "dot_mechanics": {
+                    "tick_interval_seconds": 0.5,
+                    "duration_seconds": 6,
+                    "max_stacks": 5,
+                    "stacks_are_additive": true
+                }
+            },
+            "frost_vortex": {
+                "name": "Frost Vortex",
+                "tag": "<AOE DMG>",
+                "base_source": "psi_intensity",
+                "keyword_factor": 0.50,
+                "formula": "0.5 × PSI × (1 + FrostVortex_Factor) × (1 + FrostVortex_Final) × (1 + Status_DMG) × (1 + Frost_Elemental)",
+                "factor_bucket": "frost_vortex_dmg_factor",
+                "final_bucket": "frost_vortex_final_dmg",
+                "can_crit": false,
+                "can_weakspot": false,
+                "distance_decay": false,
+                "element": "frost",
+                "effect_description": "Creates AoE zone that slows and damages enemies",
+                "cc_effect": "slow"
+            },
+            "bulls_eye": {
+                "name": "The Bull's Eye",
+                "tag": "<Continuous Debuff>",
+                "base_source": "none",
+                "is_damage_keyword": false,
+                "effect_type": "vulnerability_debuff",
+                "formula": "Target takes (1 + 0.08 + BullsEye_Vulnerability_Bonus) multiplier to ALL incoming damage",
+                "base_vulnerability": 0.08,
+                "effect_description": "Marks target with blue outline, increasing damage taken by 8%",
+                "duration_seconds": 12,
+                "trigger_chance_weakspot": 0.70, // seems to conflate with Bingo weapon effect
+                "trigger_on_swap": true, // seems to conflate with Bingo weapon effect
+                "notes": "Amplifies both Weapon DMG and Status DMG builds equally"
+            },
+            "fortress_warfare": {
+                "name": "Fortress Warfare",
+                "tag": "<AOE Buff>",
+                "base_source": "none",
+                "is_damage_keyword": false,
+                "effect_type": "self_buff",
+                "base_weapon_dmg_bonus": 0.20,
+                "effect_description": "Stationary combat state granting +20% Weapon DMG and Super Armor",
+                "activation": "Crouching or specific weapon actions",
+                "notes": "Some mods trade Super Armor for additional damage (United We Stand: +15% Attack)"
+            },
+            "fast_gunner": {
+                "name": "Fast Gunner",
+                "tag": "<Continuous Buff>",
+                "base_source": "attack",
+                "is_damage_keyword": false,
+                "effect_type": "self_buff",
+                "effect_description": "Increases fire rate and attack damage, for each stack Fire Rate +1% and Attack +1% for 2s. Can stack up to 5 times.",
+                "scaling": "weapon_dmg",
+                "notes": "Proc chance varies by weapon base stats"
+            }
+        }
+    },
+    "data_gaps": {
+        "resolved_in_v1.1": [
+            "Keyword damage formula structure (Factor vs Final buckets)",
+            "Bastille armor base stats by tier",
+            "Ammunition tier multipliers",
+            "Suffix tier values (Violent, Precision, Talents)"
+        ],
+        "missing_weapon_data": [
+            "Complete tier progression (Tier 1-5) damage values for all weapons",
+            "Exact fire rates for many weapons",
+            "Reload speed values (dynamic, affected by mods/skills)",
+            "Effective range values",
+            "Per-weapon keyword trigger chances"
+        ],
+        "missing_armor_data": [
+            "Agent set base stats by tier",
+            "Anabasis set base stats by tier",
+            "Post-2.3.1 crafted armor stat formulas (community reports lower ceiling than legacy calibrated gear)"
+        ],
+        "missing_mod_data": [
+            "Complete Factor vs Final source mapping (which mods provide which bucket)",
+            "New fixed-stat mod values post-January 2026 update (Level 1-17 progression)",
+            "Shiny mod main stat bonus values",
+            "Frost Vortex base percent (not documented)"
+        ],
+        "missing_formula_data": [
+            "Exact interaction of Crit DMG with PSI-based keywords (edge cases)",
+            "Distance decay curves for Shrapnel and Unstable Bomber",
+            "Status DMG vs Elemental DMG multiplicative order confirmation"
+        ],
+        "recommended_sources": [
+            "In-game mod conversion screen (real-time accurate data)",
+            "OhDex Build Tool: https://ohdex.gg/",
+            "Community Gear Dataset: https://docs.google.com/spreadsheets/d/1g6eo2LlIMPp0IRboeXFvnWRZzfXVvpJCJkxs9rw0qHM/",
+            "Farmerzez's Google Sheet",
+            "TapTap community (Chinese) - weapon guides",
+            "NGA forums (萤火突击) for Chinese community testing",
+            "r/OnceHumanOfficial Discord for real-time community data"
+        ]
+    }
+}

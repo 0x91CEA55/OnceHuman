@@ -1,6 +1,3 @@
-# Reference files (not part of the project deliverable)
-src/index.html
-
 # Dependencies
 node_modules/
 
@@ -48,11 +45,5 @@ coverage/
 
 # MD CSS
 **/obsidian-vscode.css
-# Gemini CLI meta-files
-.gemini/
-GEMINI.md
-.prompts.js
-skills/
-Simulator/img/
-research/*/
-*.skill
+simulator/img/
+!simulator/img/screeny.png
