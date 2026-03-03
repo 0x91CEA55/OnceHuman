@@ -11,7 +11,7 @@
          .     .    °    .        .        .      . +     .  +     .  
     .    +     .     .     .          .      +  .    °    .
 
-              >> [ TITLE_FOUND: ONCE HUMAN ] <<
+                >> [ TITLE_FOUND: ONCE HUMAN ] <<
                   >> [ DECRYPTING_LOCATION ] <<
 
 
