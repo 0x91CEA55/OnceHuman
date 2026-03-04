@@ -3,12 +3,13 @@ import { AggregationContext, EncounterConditions } from '../types/common';
 import { auditLog } from './audit-log';
 import { AMMUNITION } from '../data/ammunition';
 import { StatType } from '../types/enums';
+import { STATUS_REGISTRY } from '../data/status-registry';
 
 export class StatAggregator {
     /**
      * Unified entry point for aggregating all player stats.
      * Coordinate between static gear data and transient simulation state.
-     * 
+     *
      * @param staticOnly If true, only applies baseline gear/stars/calibration. Skips temporal statuses.
      */
     static aggregate(player: Player, conditions: EncounterConditions, ammoPercent: number = 1.0, skipAudit: boolean = false, staticOnly: boolean = false): void {
@@ -48,11 +49,11 @@ export class StatAggregator {
 
         // 4. Apply Active Temporal Buffs (Statuses) - SKIP if calculating the static baseline
         if (!staticOnly && player.statusManager) {
-            const activeBuffs = player.statusManager.getActiveBuffs();
-            for (const buff of activeBuffs) {
-                for (const effect of buff.definition.effects) {
-                    player.activeEffects.push(effect);
-                    effect.applyStatic(player, conditions, buff.currentStacks);
+            for (const buffInstance of player.statusManager.getActiveBuffs()) {
+                const def = STATUS_REGISTRY.getBuff(buffInstance.definitionId);
+                if (!def) continue;
+                for (const contrib of def.statContributions) {
+                    player.stats.add(contrib.stat, contrib.valuePerStack * buffInstance.currentStacks);
                 }
             }
         }

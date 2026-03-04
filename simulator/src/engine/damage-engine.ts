@@ -1,16 +1,21 @@
 import { Player } from '../models/player';
 import { Enemy } from '../models/enemy';
 import { EncounterConditions } from '../types/common';
-import { StatType, EventTrigger, DamageTrait } from '../types/enums';
-import { CombatContext, CombatState } from '../models/effect';
+import { StatType, DamageTrait } from '../types/enums';
 import { StatAggregator } from './stat-aggregator';
-import { StatusManager } from './status-manager';
-import { CombatEventBus, CombatEvent } from './event-bus';
 import { DamageProcessor } from './damage-processor';
 import { DamageResolutionStrategy } from './damage-resolution-strategy';
 import { DamageIntent } from '../models/damage';
 import { ConfigManager } from './config';
 import { auditLog } from './audit-log';
+
+import { runTriggerEvaluation, TriggerEvent, TriggerEvalContext } from './trigger-system';
+import { runEffectExecution, EffectExecutionContext, StatusTickContext } from './effect-system';
+import { TriggerType } from '../types/trigger-types';
+import { TriggerCounterKey, CooldownKey } from '../types/keys';
+import { RngService, MathRandomRng } from './rng';
+import { STATUS_REGISTRY } from '../data/status-registry';
+import { statValuesFromSnapshot } from './resolver';
 
 export interface SimulationLogEntry {
     timestamp: number;
@@ -43,77 +48,56 @@ export interface MonteCarloResult {
 }
 
 export class DamageEngine {
-    private statusManager = new StatusManager(null as any); 
-    private combatState = new CombatState();
-    private eventBus = new CombatEventBus();
     private processor: DamageProcessor;
-    
     private primaryTarget: Enemy;
     private allEnemies: Enemy[] = [];
     private currentTime: number = 0;
     private logs: SimulationLogEntry[] = [];
     private accumulatedDamage: number = 0;
-    
+
+    /** ADR-003: Per-simulation-run state. Reset at start of each mag dump. */
+    private counters: Map<TriggerCounterKey, number> = new Map();
+    private cooldowns: Map<CooldownKey, number> = new Map();
+    private rng: RngService;
+
     // Telemetry tracking
     private telemetryData: Partial<Record<StatType, number[]>> = {};
     private timeAxis: number[] = [];
     private lastSampleTime: number = -0.1;
 
     constructor(
-        private player: Player, 
+        private player: Player,
         private conditions: EncounterConditions,
-        private strategy?: DamageResolutionStrategy
+        strategy?: DamageResolutionStrategy,
+        rng?: RngService
     ) {
-        // Integrate with ConfigManager and AuditLog
-        const activeStrategy = this.strategy || ConfigManager.getStrategy();
+        const activeStrategy = strategy || ConfigManager.getStrategy();
         this.processor = new DamageProcessor(activeStrategy);
-        
-        // Audit logging for the engine configuration
+        this.rng = rng ?? new MathRandomRng();
+
         auditLog.setStrategy(ConfigManager.getActiveStrategyType());
         auditLog.log('Engine', 'Initialization', `Started DamageEngine with ${ConfigManager.getActiveStrategyType()} strategy`);
 
         this.primaryTarget = new Enemy('boss-1', 9999999);
         this.allEnemies = [this.primaryTarget];
-        this.statusManager = this.primaryTarget.statusManager; 
-        this.setupEventHandlers();
-    }
-
-    private setupEventHandlers() {
-        const triggers = [
-            EventTrigger.OnHit, 
-            EventTrigger.OnCrit, 
-            EventTrigger.OnWeakspotHit, 
-            EventTrigger.OnReload, 
-            EventTrigger.OnKill
-        ];
-
-        for (const trigger of triggers) {
-            this.eventBus.subscribe(trigger, (event) => {
-                const ctx = this.createContext();
-                const allEffects = this.player.loadout.getAllTriggeredEffects();
-                
-                for (const effect of allEffects) {
-                    if (effect.trigger.type === trigger) {
-                        const success = effect.evaluate(ctx, event);
-                        if (success) {
-                            effect.execute(ctx, event);
-                        }
-                    }
-                }
-            });
-        }
     }
 
     simulateMagDump(): SimulationLogEntry[] {
-        // console.error("SIMULATING MAG DUMP");
         this.accumulatedDamage = 0;
         this.currentTime = 0;
         this.logs = [];
-        this.combatState = new CombatState(); // Fresh state for each run
         this.telemetryData = {};
         this.timeAxis = [];
         this.lastSampleTime = -0.1;
-        
+
+        // ADR-003: Reset per-run trigger state (fixes EveryNHits counter state pollution bug)
+        this.counters = new Map();
+        this.cooldowns = new Map();
+
+        // Reset per-run status state
+        this.primaryTarget.statusManager.clear();
+        this.player.statusManager.clear();
+
         // Initial aggregate to get baseline mag size and fire rate
         StatAggregator.aggregate(this.player, this.conditions, 1.0, true);
 
@@ -123,14 +107,11 @@ export class DamageEngine {
         const fireRate = this.player.stats.get(StatType.FireRate)?.value ?? 100;
         const shotInterval = 60 / fireRate;
         const magSize = Math.floor(this.player.stats.get(StatType.MagazineCapacity)?.value ?? 30);
-        // console.error(`MAG SIZE: ${magSize}`);
 
         for (let shotCount = 1; shotCount <= magSize; shotCount++) {
-            // Re-aggregate stats before each shot to account for dynamic buffs
-            // ammoPercent is remaining ammo (1.0 at start, 0.0 at end)
             const ammoPercent = (magSize - shotCount + 1) / magSize;
             StatAggregator.aggregate(this.player, this.conditions, ammoPercent);
-            
+
             this.simulateShot(shotCount);
             this.advanceTime(shotInterval);
         }
@@ -144,13 +125,12 @@ export class DamageEngine {
 
         for (let i = 0; i < iterations; i++) {
             const logs = this.simulateMagDump();
-            if (i === 0) sampleLogs = logs; 
-            
+            if (i === 0) sampleLogs = logs;
+
             allTotals.push(this.accumulatedDamage);
-            
+
             if (onProgress && i % 20 === 0) {
                 onProgress(i / iterations);
-                // Simple yield
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
@@ -158,7 +138,7 @@ export class DamageEngine {
         const average = allTotals.reduce((a, b) => a + b, 0) / iterations;
         const min = Math.min(...allTotals);
         const max = Math.max(...allTotals);
-        
+
         const squareDiffs = allTotals.map(v => Math.pow(v - average, 2));
         const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / iterations;
         const stdDev = Math.sqrt(avgSquareDiff);
@@ -181,8 +161,9 @@ export class DamageEngine {
     }
 
     private simulateShot(shotNumber: number) {
+        // Primary shot damage via existing DamageProcessor (ADR-002 primary migration: future work)
         const baseWeaponDmg = this.player.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
-        
+
         const intent = new DamageIntent(baseWeaponDmg, this.player, this.primaryTarget)
             .addTrait(DamageTrait.Attack)
             .addTrait(DamageTrait.Weapon)
@@ -193,45 +174,95 @@ export class DamageEngine {
         this.accumulatedDamage += damage;
         this.log(this.currentTime, 'Shot', `Bullet #${shotNumber} deals ${Math.round(damage)}`, damage, intent);
 
-        const hitEvent: CombatEvent = {
-            type: EventTrigger.OnHit,
-            source: this.player,
-            target: this.primaryTarget,
-            intent: intent,
-            damage: damage,
+        // ADR-003: Fire OnHit trigger event
+        // trigger-system handles OnCrit/OnWeakspotHit internally via isCrit/isWeakspot flags
+        const triggerEvent: TriggerEvent = {
+            triggerType: TriggerType.OnHit,
             isCrit: intent.isCrit,
             isWeakspot: intent.isWeakspot,
-            depth: 0
+            passDepth: 0,
         };
 
-        this.eventBus.emit(hitEvent);
-        
-        if (intent.isCrit) {
-             this.eventBus.emit({
-                ...hitEvent,
-                type: EventTrigger.OnCrit
-             });
-        }
+        this.fireTriggers(triggerEvent);
+    }
 
-        if (intent.isWeakspot) {
-            this.eventBus.emit({
-                ...hitEvent,
-                type: EventTrigger.OnWeakspotHit
-            });
+    /**
+     * Evaluates all TriggerDefinitions for the given event and executes fired effects.
+     * ADR-003: Replaces CombatEventBus.emit() + TriggeredEffect.evaluate()/execute().
+     */
+    private fireTriggers(event: TriggerEvent): void {
+        const triggerDefs = this.player.loadout.getAllTriggerDefinitions();
+        const statValues = statValuesFromSnapshot(this.player.stats.snapshot());
+
+        const evalCtx: TriggerEvalContext = {
+            encounterEnemyType: this.conditions.enemyType,
+            targetDistanceMeters: this.conditions.targetDistanceMeters,
+            currentTimeSeconds: this.currentTime,
+            targetActiveDoTs: this.primaryTarget.statusManager.activeDoTs,
+            targetActiveBuffs: this.primaryTarget.statusManager.activeBuffs,
+            counters: this.counters,
+            cooldowns: this.cooldowns,
+            rng: this.rng,
+        };
+
+        const firedTriggers = runTriggerEvaluation(
+            triggerDefs,
+            event,
+            evalCtx,
+            (triggerId, depth) => {
+                auditLog.log('TriggerDepth', 'Exceeded', `${triggerId} at depth ${depth}`);
+            }
+        );
+
+        if (firedTriggers.length === 0) return;
+
+        const effCtx: EffectExecutionContext = {
+            statValues,
+            encounterEnemyType: this.conditions.enemyType,
+            currentTimeSeconds: this.currentTime,
+            cooldowns: this.cooldowns,
+            targetDoTs: this.primaryTarget.statusManager.activeDoTs,
+            targetBuffs: this.primaryTarget.statusManager.activeBuffs,
+            playerBuffs: this.player.statusManager.activeBuffs,
+            dotRegistry: (id) => STATUS_REGISTRY.getDot(id as any),
+            buffRegistry: (id) => STATUS_REGISTRY.getBuff(id as any),
+            recordDamage: (amount, label, _traits) => {
+                this.accumulatedDamage += amount;
+                this.log(this.currentTime, 'Effect Damage', `${label}: ${Math.round(amount)}`, amount);
+            },
+            logEvent: (evt, desc) => this.log(this.currentTime, evt, desc),
+        };
+
+        for (const fired of firedTriggers) {
+            runEffectExecution(fired.effects, effCtx);
         }
     }
 
     private advanceTime(dt: number) {
         const targetTime = this.currentTime + dt;
-        const step = 0.01; 
+        const step = 0.01;
 
         while (this.currentTime < targetTime) {
             this.currentTime += step;
-            
-            const ctx = this.createContext();
-            this.player.statusManager.tick(step, ctx);
+
+            const statValues = statValuesFromSnapshot(this.player.stats.snapshot());
+
+            const tickCtx: StatusTickContext = {
+                currentTimeSeconds: this.currentTime,
+                statValues,
+                encounterEnemyType: this.conditions.enemyType,
+                recordDamage: (amount, label) => {
+                    this.accumulatedDamage += amount;
+                    this.log(this.currentTime, 'DoT Tick', `${label}: ${Math.round(amount)}`, amount);
+                },
+                logEvent: (evt, desc) => this.log(this.currentTime, evt, desc),
+                dotRegistry: (id) => STATUS_REGISTRY.getDot(id as any),
+                buffRegistry: (id) => STATUS_REGISTRY.getBuff(id as any),
+            };
+
+            this.player.statusManager.tick(step, tickCtx);
             for (const enemy of this.allEnemies) {
-                enemy.statusManager.tick(step, ctx);
+                enemy.statusManager.tick(step, tickCtx);
             }
 
             if (this.currentTime - this.lastSampleTime >= 0.1) {
@@ -240,27 +271,6 @@ export class DamageEngine {
             }
         }
         this.currentTime = targetTime;
-    }
-
-    private createContext(): CombatContext {
-        return {
-            player: this.player,
-            conditions: this.conditions,
-            currentTime: this.currentTime,
-            recordDamage: (amt: number, src: string, intent?: DamageIntent) => {
-                this.accumulatedDamage += amt;
-                const desc = `${src} deals ${Math.round(amt).toLocaleString()} damage`;
-                this.log(this.currentTime, 'Damage', desc, amt, intent);
-            },
-            logEvent: (evt: string, desc: string) => this.log(this.currentTime, evt, desc),
-            statusManager: this.statusManager,
-            state: this.combatState,
-            eventBus: this.eventBus,
-            getNearbyTargets: (_target: Enemy, _radius: number) => {
-                // In current sim, only one enemy.
-                return [];
-            }
-        };
     }
 
     private sampleTelemetry() {
@@ -283,7 +293,7 @@ export class DamageEngine {
             damage,
             accumulatedDamage: this.accumulatedDamage,
             statsSnapshot: this.player.stats.snapshot(),
-            activeBuffs: [], // TODO: Get from status manager
+            activeBuffs: [],
             activeDoTs: [],
             activeEffects: [],
             bucketMultipliers: intent?.bucketMultipliers ?? {}

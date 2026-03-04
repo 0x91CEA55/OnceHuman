@@ -1,79 +1,37 @@
-import { ActiveBuff, ActiveDoT, CombatContext, BuffEffect, DoTEffect } from '../models/effect';
-import { Entity } from '../models/entity';
+/**
+ * StatusManager — pure state container for ADR-003.
+ *
+ * Holds DoTInstance[] and BuffInstance[] for an entity.
+ * Apply/tick logic has moved to effect-system.ts (tickDoTs, tickBuffs, applyDoTInstance, applyBuffInstance).
+ * This class is intentionally thin — DamageEngine accesses the lists directly via EffectExecutionContext.
+ */
+
+import { DoTInstance, BuffInstance } from '../types/status-types';
+import { tickDoTs, tickBuffs, StatusTickContext } from './effect-system';
 
 export class StatusManager {
-    private activeDoTs: ActiveDoT[] = [];
-    private activeBuffs: ActiveBuff[] = [];
+    public readonly activeDoTs: DoTInstance[] = [];
+    public readonly activeBuffs: BuffInstance[] = [];
 
-    constructor(public readonly owner: Entity) {}
-
-    addBuff(effect: BuffEffect, ctx: CombatContext): void {
-        const incoming = new ActiveBuff(effect);
-        let existing = this.activeBuffs.find(b => b.canStackWith(incoming));
-        
-        if (existing) {
-            existing.onStackAdded(incoming, ctx);
-        } else {
-            this.activeBuffs.push(incoming);
-            incoming.onApply(ctx);
-        }
-    }
-
-    addDoT(effect: DoTEffect, ctx: CombatContext, maxStacks: number, duration: number): void {
-        const incoming = new ActiveDoT(effect, ctx.currentTime, maxStacks, duration);
-        let existing = this.activeDoTs.find(d => d.canStackWith(incoming));
-        
-        if (existing) {
-            existing.onStackAdded(incoming, ctx);
-        } else {
-            this.activeDoTs.push(incoming);
-            incoming.onApply(ctx);
-        }
-    }
-
-    tick(dt: number, ctx: CombatContext): void {
-        // 1. Tick Buffs
-        for (let i = this.activeBuffs.length - 1; i >= 0; i--) {
-            const buff = this.activeBuffs[i];
-            buff.tick(dt);
-            buff.onTick(ctx);
-            if (buff.isExpired()) {
-                buff.onExpire(ctx);
-                this.activeBuffs.splice(i, 1);
-            }
-        }
-
-        // 2. Tick DoTs
-        for (let i = this.activeDoTs.length - 1; i >= 0; i--) {
-            const dot = this.activeDoTs[i];
-            const isTickTime = dot.tickWithDamage(ctx.currentTime, dt, ctx);
-            
-            if (isTickTime) {
-                // Delegation: Let the DoT instance resolve its own damage math
-                dot.onTick(ctx);
-            }
-
-            if (dot.isExpired()) {
-                dot.onExpire(ctx);
-                this.activeDoTs.splice(i, 1);
-            }
-        }
+    tick(dt: number, ctx: StatusTickContext): void {
+        tickDoTs(this.activeDoTs, dt, ctx);
+        tickBuffs(this.activeBuffs, dt, ctx);
     }
 
     clear(): void {
-        this.activeDoTs = [];
-        this.activeBuffs = [];
+        this.activeDoTs.length = 0;
+        this.activeBuffs.length = 0;
     }
 
     hasActiveStatus(): boolean {
         return this.activeDoTs.length > 0 || this.activeBuffs.length > 0;
     }
-    
-    getActiveBuffs(): ActiveBuff[] {
+
+    getActiveBuffs(): BuffInstance[] {
         return this.activeBuffs;
     }
 
-    getActiveDoTs(): ActiveDoT[] {
+    getActiveDoTs(): DoTInstance[] {
         return this.activeDoTs;
     }
 }

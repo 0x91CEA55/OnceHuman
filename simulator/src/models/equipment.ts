@@ -3,7 +3,7 @@ import { Keyword } from '../pipelines/keyword';
 import { GenericStat, MagazineCapacityStat, CritRateStat } from './stats';
 import { Substat } from './substat';
 import { BaseEffect, StaticAttributeEffect, IncreaseStatEffect } from './effect';
-import { TriggeredEffect } from './trigger';
+import { TriggerDefinition } from '../types/trigger-types';
 
 import { AggregationContext } from '../types/common';
 import { ScalingEngine } from '../engine/scaling-engine';
@@ -18,7 +18,7 @@ export class ModData {
         public readonly slot: ArmorSlot | GearSlot,
         public readonly description: string,
         public readonly permanentEffects: BaseEffect[],
-        public readonly triggeredEffects: TriggeredEffect[]
+        public readonly triggerDefinitions: TriggerDefinition[]
     ) {}
 }
 
@@ -74,14 +74,14 @@ export abstract class Equipment {
     protected abstract applyBaseStats(ctx: AggregationContext): void;
     protected abstract applyIntrinsicLogic(ctx: AggregationContext): void;
 
-    public getAllTriggeredEffects(): TriggeredEffect[] {
-        const effects: TriggeredEffect[] = [];
-        if (this.mod) effects.push(...this.mod.definition.triggeredEffects);
-        effects.push(...this.getTriggeredEffects());
-        return effects;
+    public getAllTriggerDefinitions(): TriggerDefinition[] {
+        const defs: TriggerDefinition[] = [];
+        if (this.mod) defs.push(...this.mod.definition.triggerDefinitions);
+        defs.push(...this.getTriggerDefinitions());
+        return defs;
     }
 
-    protected getTriggeredEffects(): TriggeredEffect[] {
+    protected getTriggerDefinitions(): TriggerDefinition[] {
         return [];
     }
 }
@@ -117,7 +117,7 @@ export class Calibration {
      */
     getStyleEffects(weaponType: WeaponType): BaseEffect[] {
         const styleEffects: Record<CalibrationStyle, (wt: WeaponType) => BaseEffect[]> = {
-            [CalibrationStyle.RapidShot]: (wt) => wt === WeaponType.SniperRifle 
+            [CalibrationStyle.RapidShot]: (wt) => wt === WeaponType.SniperRifle
                 ? [
                     new IncreaseStatEffect(StatType.BoltPullingSpeedPercent, 50),
                     new IncreaseStatEffect(StatType.ActionDelayPercent, -50),
@@ -167,12 +167,14 @@ export class Weapon extends Equipment {
         public keyword: Keyword,
         public stats: WeaponStats,
         public intrinsicEffects: BaseEffect[],
-        public triggeredEffects: TriggeredEffect[] = []
+        public triggerDefinitions: TriggerDefinition[] = [],
+        /** When true, keyword's default trigger definitions are skipped (e.g. OctopusGrilledRings overrides Burn chance). */
+        public overridesKeywordTriggers: boolean = false
     ) { super(id, name, rarity, star, level, calibration, mod); }
 
     protected override applyBaseStats(ctx: AggregationContext): void {
         const calibrationMultiplier = this.calibrationMatrix.getBaseDmgMultiplier();
-        
+
         const finalBaseDamage = ScalingEngine.calculateFinalBaseDamage(
             this.stats.damagePerProjectile.value,
             this.star,
@@ -212,8 +214,9 @@ export class Weapon extends Equipment {
         }
     }
 
-    override getTriggeredEffects(): TriggeredEffect[] {
-        return [...super.getTriggeredEffects(), ...this.keyword.getTriggeredEffects(), ...this.triggeredEffects];
+    override getTriggerDefinitions(): TriggerDefinition[] {
+        const keywordTriggers = this.overridesKeywordTriggers ? [] : this.keyword.getTriggerDefinitions();
+        return [...keywordTriggers, ...this.triggerDefinitions];
     }
 }
 
@@ -289,16 +292,16 @@ export class Loadout {
         this.applySetBonuses(ctx);
     }
 
-    public getAllTriggeredEffects(): TriggeredEffect[] {
-        const effects: TriggeredEffect[] = [];
-        if (this.weapon) effects.push(...this.weapon.getAllTriggeredEffects());
-        if (this.helmet) effects.push(...this.helmet.getAllTriggeredEffects());
-        if (this.mask) effects.push(...this.mask.getAllTriggeredEffects());
-        if (this.top) effects.push(...this.top.getAllTriggeredEffects());
-        if (this.gloves) effects.push(...this.gloves.getAllTriggeredEffects());
-        if (this.pants) effects.push(...this.pants.getAllTriggeredEffects());
-        if (this.boots) effects.push(...this.boots.getAllTriggeredEffects());
-        return effects;
+    public getAllTriggerDefinitions(): TriggerDefinition[] {
+        const defs: TriggerDefinition[] = [];
+        if (this.weapon) defs.push(...this.weapon.getAllTriggerDefinitions());
+        if (this.helmet) defs.push(...this.helmet.getAllTriggerDefinitions());
+        if (this.mask) defs.push(...this.mask.getAllTriggerDefinitions());
+        if (this.top) defs.push(...this.top.getAllTriggerDefinitions());
+        if (this.gloves) defs.push(...this.gloves.getAllTriggerDefinitions());
+        if (this.pants) defs.push(...this.pants.getAllTriggerDefinitions());
+        if (this.boots) defs.push(...this.boots.getAllTriggerDefinitions());
+        return defs;
     }
 
     private applySetBonuses(ctx: AggregationContext): void {
