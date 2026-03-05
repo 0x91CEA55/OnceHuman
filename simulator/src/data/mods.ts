@@ -23,6 +23,19 @@ class MomentumUpMod extends Mod {
 }
 
 /**
+ * Rush Hour: Every 10% HP loss grants +4% Melee, Weapon, and Status DMG.
+ */
+class RushHourMod extends Mod {
+    protected override applyCustomLogic(ctx: AggregationContext): void {
+        const hpLoss = 100 - ctx.conditions.playerHpPercent;
+        const stacks = Math.floor(hpLoss / 10);
+        const bonus = stacks * 4;
+        ctx.player.stats.add(StatType.WeaponDamagePercent, bonus);
+        ctx.player.stats.add(StatType.StatusDamagePercent, bonus);
+    }
+}
+
+/**
  * Fateful Strike: Cannot deal Weakspot DMG. Crit rate +10% and Crit DMG +30%
  */
 class FatefulStrikeMod extends Mod {
@@ -109,6 +122,22 @@ export const MOD_DATA: Record<ModKey, ModData> = {
         [],
         PRECISE_STRIKE_TRIGGERS
     ),
+    [ModKey.ElementalResonance]: new ModData(
+        ModKey.ElementalResonance,
+        'Elemental Resonance',
+        ArmorSlot.Pants,
+        'Elemental DMG +20% (Simplified snapshot)',
+        [new IncreaseStatEffect(StatType.ElementalDamagePercent, 20)],
+        []
+    ),
+    [ModKey.RushHour]: new ModData(
+        ModKey.RushHour,
+        'Rush Hour',
+        ArmorSlot.Boots,
+        'Every 10% HP loss grants +4% Melee, Weapon, and Status DMG.',
+        [],
+        []
+    ),
     [ModKey.FlameResonance]: new ModData(
         ModKey.FlameResonance,
         'Flame Resonance',
@@ -139,6 +168,7 @@ export function createModInstance(
 
     if (modKey === ModKey.MomentumUp) return new MomentumUpMod(data, substats);
     if (modKey === ModKey.FatefulStrike) return new FatefulStrikeMod(data, substats);
+    if (modKey === ModKey.RushHour) return new RushHourMod(data, substats);
 
     return new Mod(data, substats);
 }

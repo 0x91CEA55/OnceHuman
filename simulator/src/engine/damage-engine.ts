@@ -25,6 +25,8 @@ export interface SimulationLogEntry {
     description: string;
     damage?: number;
     accumulatedDamage: number;
+    instantaneousDPS: number;
+    runningAverageDPS: number;
     statsSnapshot: Record<StatType, number>;
     activeBuffs: { id: string, name: string, stacks: number, remaining: number }[];
     activeDoTs: { id: string, name: string, stacks: number, remaining: number, nextTick: number }[];
@@ -35,6 +37,9 @@ export interface SimulationLogEntry {
 export interface TelemetryTrack {
     timeAxis: number[];
     data: Partial<Record<StatType, number[]>>;
+    cumulativeDamage: number[];
+    instantaneousDPS: number[];
+    runningAverageDPS: number[];
     variance?: Partial<Record<StatType, number[]>>; 
 }
 
@@ -61,8 +66,15 @@ export class DamageEngine {
     private cooldowns: Map<CooldownKey, number> = new Map();
     private rng: RngService;
 
+    // High-Fidelity DPS tracking
+    private dpsWindow: { timestamp: number, damage: number }[] = [];
+    private readonly DPS_WINDOW_SECONDS = 1.0;
+
     // Telemetry tracking
     private telemetryData: Partial<Record<StatType, number[]>> = {};
+    private telemetryCumulativeDamage: number[] = [];
+    private telemetryInstantaneousDPS: number[] = [];
+    private telemetryRunningAverageDPS: number[] = [];
     private timeAxis: number[] = [];
     private lastSampleTime: number = -0.1;
 
@@ -84,7 +96,11 @@ export class DamageEngine {
         this.accumulatedDamage = 0;
         this.currentTime = 0;
         this.logs = [];
+        this.dpsWindow = [];
         this.telemetryData = {};
+        this.telemetryCumulativeDamage = [];
+        this.telemetryInstantaneousDPS = [];
+        this.telemetryRunningAverageDPS = [];
         this.timeAxis = [];
         this.lastSampleTime = -0.1;
 
@@ -155,9 +171,26 @@ export class DamageEngine {
             sampleLogs,
             telemetry: {
                 timeAxis: this.timeAxis,
-                data: this.telemetryData
+                data: this.telemetryData,
+                cumulativeDamage: this.telemetryCumulativeDamage,
+                instantaneousDPS: this.telemetryInstantaneousDPS,
+                runningAverageDPS: this.telemetryRunningAverageDPS
             }
         };
+    }
+
+    private calculateInstantaneousDPS(): number {
+        const cutoff = this.currentTime - this.DPS_WINDOW_SECONDS;
+        while (this.dpsWindow.length > 0 && this.dpsWindow[0].timestamp < cutoff) {
+            this.dpsWindow.shift();
+        }
+        const windowDamage = this.dpsWindow.reduce((acc, entry) => acc + entry.damage, 0);
+        return windowDamage / this.DPS_WINDOW_SECONDS;
+    }
+
+    private recordDamageEvent(amount: number) {
+        this.accumulatedDamage += amount;
+        this.dpsWindow.push({ timestamp: this.currentTime, damage: amount });
     }
 
     private simulateShot(shotNumber: number) {
@@ -178,7 +211,7 @@ export class DamageEngine {
         // Resolve damage through UNIVERSAL_BUCKETS
         const { finalDamage, audit } = resolve(baseWeaponDmg, UNIVERSAL_BUCKETS, ctx);
 
-        this.accumulatedDamage += finalDamage;
+        this.recordDamageEvent(finalDamage);
         
         // Log with audit trail
         const auditLogMap: Record<string, number> = {};
@@ -190,6 +223,8 @@ export class DamageEngine {
             description: `Bullet #${shotNumber} deals ${Math.round(finalDamage)}`,
             damage: finalDamage,
             accumulatedDamage: this.accumulatedDamage,
+            instantaneousDPS: this.calculateInstantaneousDPS(),
+            runningAverageDPS: this.currentTime > 0 ? this.accumulatedDamage / this.currentTime : 0,
             statsSnapshot: this.player.stats.snapshot(),
             activeBuffs: [],
             activeDoTs: [],
@@ -245,7 +280,7 @@ export class DamageEngine {
             dotRegistry: (id) => STATUS_REGISTRY.getDot(id as any),
             buffRegistry: (id) => STATUS_REGISTRY.getBuff(id as any),
             recordDamage: (amount, label, _traits) => {
-                this.accumulatedDamage += amount;
+                this.recordDamageEvent(amount);
                 this.log(this.currentTime, 'Effect Damage', `${label}: ${Math.round(amount)}`, amount);
             },
             logEvent: (evt, desc) => this.log(this.currentTime, evt, desc),
@@ -270,7 +305,7 @@ export class DamageEngine {
                 statValues,
                 encounterEnemyType: this.conditions.enemyType,
                 recordDamage: (amount, label) => {
-                    this.accumulatedDamage += amount;
+                    this.recordDamageEvent(amount);
                     this.log(this.currentTime, 'DoT Tick', `${label}: ${Math.round(amount)}`, amount);
                 },
                 logEvent: (evt, desc) => this.log(this.currentTime, evt, desc),
@@ -298,6 +333,10 @@ export class DamageEngine {
             if (!this.telemetryData[stat as StatType]) this.telemetryData[stat as StatType] = [];
             this.telemetryData[stat as StatType]!.push(val);
         }
+
+        this.telemetryCumulativeDamage.push(this.accumulatedDamage);
+        this.telemetryInstantaneousDPS.push(this.calculateInstantaneousDPS());
+        this.telemetryRunningAverageDPS.push(this.currentTime > 0 ? this.accumulatedDamage / this.currentTime : 0);
     }
 
     getLogs() { return this.logs; }
@@ -310,6 +349,8 @@ export class DamageEngine {
             description,
             damage,
             accumulatedDamage: this.accumulatedDamage,
+            instantaneousDPS: this.calculateInstantaneousDPS(),
+            runningAverageDPS: timestamp > 0 ? this.accumulatedDamage / timestamp : 0,
             statsSnapshot: this.player.stats.snapshot(),
             activeBuffs: [],
             activeDoTs: [],

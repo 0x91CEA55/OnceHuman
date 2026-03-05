@@ -1,6 +1,7 @@
 import { ArmorSlot, Rarity, StatType, ArmorKey, ArmorSetKey, FlagType } from '../types/enums';
 import { SetArmor, KeyArmor, ArmorStats, ArmorSetDefinition, Armor, Mod } from '../models/equipment';
-import { BaseEffect, IncreaseStatEffect, SetFlagEffect } from '../models/effect';
+import { BaseEffect, IncreaseStatEffect, SetFlagEffect, ConditionalEffect } from '../models/effect';
+import { AggregationContext } from '../types/common';
 
 export interface ArmorData {
     id: ArmorKey;
@@ -8,7 +9,7 @@ export interface ArmorData {
     slot: ArmorSlot;
     rarity: Rarity;
     setKey?: ArmorSetKey;
-    intrinsicEffects?: (() => BaseEffect)[]; // Use factory functions to avoid circular init issues
+    intrinsicEffects?: (() => BaseEffect)[]; 
 }
 
 export interface ArmorSetData {
@@ -24,7 +25,7 @@ export const ARMOR_SETS: Record<ArmorSetKey, ArmorSetData> = {
         bonuses: [
             { requiredPieces: 1, effects: [() => new IncreaseStatEffect(StatType.MagazineCapacity, 10)] },
             { requiredPieces: 2, effects: [() => new IncreaseStatEffect(StatType.CritRatePercent, 5)] },
-            { requiredPieces: 3, effects: [() => new IncreaseStatEffect(StatType.CritDamagePercent, 12)] },
+            { requiredPieces: 3, effects: [() => new IncreaseStatEffect(StatType.CritDamagePercent, 12)] }, // Stacks in-game, simplified to static
             { requiredPieces: 4, effects: [() => new IncreaseStatEffect(StatType.CritRatePercent, 8)] }, 
         ]
     },
@@ -34,7 +35,53 @@ export const ARMOR_SETS: Record<ArmorSetKey, ArmorSetData> = {
         bonuses: [
             { requiredPieces: 1, effects: [() => new IncreaseStatEffect(StatType.WeaponDamagePercent, 10)] },
             { requiredPieces: 2, effects: [() => new IncreaseStatEffect(StatType.AttackPercent, 5)] },
-            { requiredPieces: 3, effects: [() => new IncreaseStatEffect(StatType.CritDamagePercent, 10)] },
+            { requiredPieces: 3, effects: [() => new IncreaseStatEffect(StatType.WeaponDamagePercent, 40)] }, // Bastille State simplified
+        ]
+    },
+    [ArmorSetKey.Savior]: {
+        id: ArmorSetKey.Savior,
+        name: 'Savior Set',
+        bonuses: [
+            { requiredPieces: 2, effects: [
+                () => new ConditionalEffect(
+                    (ctx: AggregationContext) => (ctx.player.stats.get(StatType.ShieldPercent)?.value ?? 0) > 0,
+                    [
+                        new IncreaseStatEffect(StatType.WeaponDamagePercent, 10),
+                        new IncreaseStatEffect(StatType.StatusDamagePercent, 10)
+                    ]
+                )
+            ]},
+            { requiredPieces: 3, effects: [
+                () => new IncreaseStatEffect(StatType.WeaponDamagePercent, 20), // 5% * 4 stacks (simplified to max)
+                () => new IncreaseStatEffect(StatType.StatusDamagePercent, 20)
+            ]}
+        ]
+    },
+    [ArmorSetKey.Treacherous]: {
+        id: ArmorSetKey.Treacherous,
+        name: 'Treacherous Tides Set',
+        bonuses: [
+            { requiredPieces: 2, effects: [
+                () => new ConditionalEffect(
+                    (ctx: AggregationContext) => ctx.conditions.playerHpPercent < 70,
+                    [
+                        new IncreaseStatEffect(StatType.WeaponDamagePercent, 12),
+                        new IncreaseStatEffect(StatType.StatusDamagePercent, 12)
+                    ]
+                )
+            ]},
+            { requiredPieces: 3, effects: [
+                // 10% base + up to 18% additional based on sanity
+                () => new IncreaseStatEffect(StatType.WeaponDamagePercent, 10),
+                () => new IncreaseStatEffect(StatType.StatusDamagePercent, 10),
+                () => new ConditionalEffect(
+                    (ctx: AggregationContext) => (ctx.player.stats.get(StatType.SanityPercent)?.value ?? 100) < 50,
+                    [
+                        new IncreaseStatEffect(StatType.WeaponDamagePercent, 18),
+                        new IncreaseStatEffect(StatType.StatusDamagePercent, 18)
+                    ]
+                )
+            ]}
         ]
     }
 };
@@ -68,6 +115,7 @@ export const ARMOR: Record<ArmorKey, ArmorData> = {
         rarity: Rarity.Legendary,
         intrinsicEffects: [
             () => new SetFlagEffect(FlagType.KeywordCanCrit, true),
+            () => new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
             () => new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20)
         ]
     },
@@ -80,6 +128,22 @@ export const ARMOR: Record<ArmorKey, ArmorData> = {
             () => new IncreaseStatEffect(StatType.BurnFrequencyPercent, 100)
         ]
     },
+
+    // Savior Set
+    [ArmorKey.SaviorHelmet]: { id: ArmorKey.SaviorHelmet, name: 'Savior Helmet', slot: ArmorSlot.Helmet, rarity: Rarity.Legendary, setKey: ArmorSetKey.Savior },
+    [ArmorKey.SaviorMask]: { id: ArmorKey.SaviorMask, name: 'Savior Mask', slot: ArmorSlot.Mask, rarity: Rarity.Legendary, setKey: ArmorSetKey.Savior },
+    [ArmorKey.SaviorTop]: { id: ArmorKey.SaviorTop, name: 'Savior Top', slot: ArmorSlot.Top, rarity: Rarity.Legendary, setKey: ArmorSetKey.Savior },
+    [ArmorKey.SaviorGloves]: { id: ArmorKey.SaviorGloves, name: 'Savior Gloves', slot: ArmorSlot.Gloves, rarity: Rarity.Legendary, setKey: ArmorSetKey.Savior },
+    [ArmorKey.SaviorPants]: { id: ArmorKey.SaviorPants, name: 'Savior Pants', slot: ArmorSlot.Pants, rarity: Rarity.Legendary, setKey: ArmorSetKey.Savior },
+    [ArmorKey.SaviorBoots]: { id: ArmorKey.SaviorBoots, name: 'Savior Boots', slot: ArmorSlot.Boots, rarity: Rarity.Legendary, setKey: ArmorSetKey.Savior },
+
+    // Treacherous Set
+    [ArmorKey.TreacherousHelmet]: { id: ArmorKey.TreacherousHelmet, name: 'Treacherous Helmet', slot: ArmorSlot.Helmet, rarity: Rarity.Legendary, setKey: ArmorSetKey.Treacherous },
+    [ArmorKey.TreacherousMask]: { id: ArmorKey.TreacherousMask, name: 'Treacherous Mask', slot: ArmorSlot.Mask, rarity: Rarity.Legendary, setKey: ArmorSetKey.Treacherous },
+    [ArmorKey.TreacherousTop]: { id: ArmorKey.TreacherousTop, name: 'Treacherous Top', slot: ArmorSlot.Top, rarity: Rarity.Legendary, setKey: ArmorSetKey.Treacherous },
+    [ArmorKey.TreacherousGloves]: { id: ArmorKey.TreacherousGloves, name: 'Treacherous Gloves', slot: ArmorSlot.Gloves, rarity: Rarity.Legendary, setKey: ArmorSetKey.Treacherous },
+    [ArmorKey.TreacherousPants]: { id: ArmorKey.TreacherousPants, name: 'Treacherous Pants', slot: ArmorSlot.Pants, rarity: Rarity.Legendary, setKey: ArmorSetKey.Treacherous },
+    [ArmorKey.TreacherousBoots]: { id: ArmorKey.TreacherousBoots, name: 'Treacherous Boots', slot: ArmorSlot.Boots, rarity: Rarity.Legendary, setKey: ArmorSetKey.Treacherous },
 };
 
 const BASE_PSI_MAP: Record<ArmorSlot, number> = {

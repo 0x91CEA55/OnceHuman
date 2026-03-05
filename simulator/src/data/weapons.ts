@@ -10,10 +10,7 @@ import { RawWeaponData } from '../types/data-sources';
 /** Weapon-specific permanent stat bonuses applied during stat aggregation. */
 const WEAPON_INTRINSIC_EFFECTS: Partial<Record<WeaponKey, BaseEffect[]>> = {
     [WeaponKey.OctopusGrilledRings]: [
-        new IncreaseStatEffect(StatType.BurnDamageFactor, 75),
-        new IncreaseStatEffect(StatType.MaxBurnStacks, -3),
-        new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
-        new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20),
+        new IncreaseStatEffect(StatType.ElementalDamagePercent, 30),
     ],
 };
 
@@ -131,26 +128,26 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
     },
     [WeaponKey.OctopusGrilledRings]: {
         id: WeaponKey.OctopusGrilledRings,
-        name: "EBR-14: Octopus! Grilled Rings!",
-        type: "sniper_rifles",
+        name: "MPS7 - Outer Space (Octopus)",
+        type: "smgs",
         rarity: "legendary",
         base_stats: {
-            damage_per_projectile: 471,
+            damage_per_projectile: 240,
             projectiles_per_shot: 1,
-            fire_rate: 300,
-            magazine_capacity: 20,
-            crit_rate_percent: 5,
+            fire_rate: 850,
+            magazine_capacity: 35,
+            crit_rate_percent: 8,
             weakspot_damage_percent: 50,
-            crit_damage_percent: 40,
+            crit_damage_percent: 30,
         },
         mechanics: {
-            description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3.",
+            description: "30% chance to apply Power Surge. On 12 hits, summon lightning (500% Psi Intensity Shock DMG). Reload grants 40% Power Surge bonus for 6s. Shock Elemental DMG +30%.",
             effects: [{
-                ability: "burn",
+                ability: "power_surge",
                 type: ''
             }]
         },
-        description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3."
+        description: "Power Surge & Lightning Summoning"
     }
 };
 

@@ -20,12 +20,26 @@ export enum ArmorKey {
     Beret = 'beret',
     OasisMask = 'oasis_mask',
     GildedGloves = 'gilded_gloves',
-    BBQGloves = 'bbq_gloves'
+    BBQGloves = 'bbq_gloves',
+    SaviorHelmet = 'savior_helmet',
+    SaviorMask = 'savior_mask',
+    SaviorTop = 'savior_top',
+    SaviorGloves = 'savior_gloves',
+    SaviorPants = 'savior_pants',
+    SaviorBoots = 'savior_boots',
+    TreacherousHelmet = 'treacherous_helmet',
+    TreacherousMask = 'treacherous_mask',
+    TreacherousTop = 'treacherous_top',
+    TreacherousGloves = 'treacherous_gloves',
+    TreacherousPants = 'treacherous_pants',
+    TreacherousBoots = 'treacherous_boots'
 }
 
 export enum ArmorSetKey {
     Lonewolf = 'lonewolf_set',
-    Bastille = 'bastille_set'
+    Bastille = 'bastille_set',
+    Savior = 'savior_set',
+    Treacherous = 'treacherous_set'
 }
 
 export enum ModKey {
@@ -38,7 +52,9 @@ export enum ModKey {
     WorkOfProficiency = 'mod-work-of-proficiency',
     FirstMoveAdvantage = 'mod-first-move-advantage',
     MagExpansion = 'mod-mag-expansion',
-    ElementalHavoc = 'mod-elemental-havoc'
+    ElementalHavoc = 'mod-elemental-havoc',
+    ElementalResonance = 'mod-elemental-resonance',
+    RushHour = 'mod-rush-hour'
 }
 
 export enum WeaponSlot { Main = 'weapon_main' }
@@ -123,7 +139,12 @@ export enum StatType {
 
     MaxBurnStacks = 'max_burn_stacks',
     BurnDurationPercent = 'burn_duration_percent',
-    BurnFrequencyPercent = 'burn_frequency_percent'
+    BurnFrequencyPercent = 'burn_frequency_percent',
+
+    // Simulation & UI Stats
+    DPS = 'dps',
+    SanityPercent = 'sanity_percent',
+    ShieldPercent = 'shield_percent'
 }
 
 export enum DamageTrait {

@@ -38,6 +38,20 @@ export const ROLL_REGISTRY: readonly RollDefinition[] = [
             { stat: StatType.WeakspotHitRatePercent, condition: ALWAYS },
         ],
         resultFlag: 'wasWeakspot'
+    },
+    {
+        id: 'burn_crit',
+        rateContributors: [
+            { 
+                stat: StatType.CritRatePercent, 
+                condition: flag('keyword_can_crit') 
+            },
+            { 
+                stat: StatType.KeywordCritRatePercent, 
+                condition: flag('keyword_can_crit') 
+            }
+        ],
+        resultFlag: 'wasBurnCrit'
     }
 ];
 
@@ -80,6 +94,13 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
         id: BucketId.BurnFactor,
         contributors: [
             { stat: StatType.BurnDamageFactor, condition: kw(KeywordType.Burn) },
+            { 
+                stat: StatType.KeywordCritDamagePercent, 
+                condition: { 
+                    type: ConditionType.And, 
+                    conditions: [kw(KeywordType.Burn), flag('wasBurnCrit')] 
+                } 
+            },
         ],
     },
     {
