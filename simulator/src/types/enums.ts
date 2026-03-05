@@ -90,6 +90,7 @@ export enum StatType {
     VulnerabilityPercent = 'vulnerability_percent',
     CritDamagePercent = 'crit_damage_percent',
     WeakspotDamagePercent = 'weakspot_damage_percent',
+    WeakspotHitRatePercent = 'weakspot_hit_rate_percent',
     DamageBonusNormal = 'damage_bonus_normal',
     DamageBonusElite = 'damage_bonus_elite',
     DamageBonusBoss = 'damage_bonus_boss',

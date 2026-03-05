@@ -30,9 +30,8 @@ describe('ADR-002: UNIVERSAL_BUCKETS resolver', () => {
         const ctx = buildResolutionContext(
             new Set([DamageTrait.Weapon]),
             EnemyType.Normal,
-            true,   // wasCrit
-            true,   // wasWeakspot
             statValues,
+            new Map([['wasCrit', true], ['wasWeakspot', true]])
         );
 
         const { finalDamage, audit } = resolve(100, UNIVERSAL_BUCKETS, ctx);
@@ -65,9 +64,8 @@ describe('ADR-002: UNIVERSAL_BUCKETS resolver', () => {
         const ctx = buildResolutionContext(
             new Set<DamageTrait>(),
             EnemyType.Normal,
-            true,   // wasCrit
-            false,  // NOT wasWeakspot
             statValues,
+            new Map([['wasCrit', true], ['wasWeakspot', false]])
         );
 
         const { finalDamage, audit } = resolve(100, UNIVERSAL_BUCKETS, ctx);
@@ -87,9 +85,8 @@ describe('ADR-002: UNIVERSAL_BUCKETS resolver', () => {
         const ctx = buildResolutionContext(
             new Set<DamageTrait>(),
             EnemyType.Normal,
-            false, // no crit
-            false, // no weakspot
             statValues,
+            new Map([['wasCrit', false], ['wasWeakspot', false]])
         );
 
         const { finalDamage, audit } = resolve(100, UNIVERSAL_BUCKETS, ctx);
@@ -108,9 +105,8 @@ describe('ADR-002: UNIVERSAL_BUCKETS resolver', () => {
         const ctxNoBurn = buildResolutionContext(
             new Set<DamageTrait>(),
             EnemyType.Normal,
-            false,
-            false,
             statValues,
+            new Map([['wasCrit', false], ['wasWeakspot', false]])
         );
         const { finalDamage: noBurnDmg } = resolve(100, UNIVERSAL_BUCKETS, ctxNoBurn);
         expect(noBurnDmg).toBeCloseTo(100, 5);
@@ -119,9 +115,8 @@ describe('ADR-002: UNIVERSAL_BUCKETS resolver', () => {
         const ctxBurn = buildResolutionContext(
             new Set([DamageTrait.Burn]),
             EnemyType.Normal,
-            false,
-            false,
             statValues,
+            new Map([['wasCrit', false], ['wasWeakspot', false]])
         );
         const { finalDamage: burnDmg } = resolve(100, UNIVERSAL_BUCKETS, ctxBurn);
         expect(burnDmg).toBeCloseTo(175, 5);
@@ -135,9 +130,8 @@ describe('ADR-002: UNIVERSAL_BUCKETS resolver', () => {
         const ctx = buildResolutionContext(
             new Set<DamageTrait>(),
             EnemyType.Normal,
-            false,
-            false,
             statValues,
+            new Map([['wasCrit', false], ['wasWeakspot', false]])
         );
 
         const { finalDamage, audit } = resolve(100, UNIVERSAL_BUCKETS, ctx);

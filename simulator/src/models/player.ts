@@ -20,6 +20,7 @@ export class PlayerStats {
         this.stats.set(StatType.CritRatePercent, new CritRateStat(0));
         this.stats.set(StatType.CritDamagePercent, new GenericStat(StatType.CritDamagePercent, 0));
         this.stats.set(StatType.WeakspotDamagePercent, new GenericStat(StatType.WeakspotDamagePercent, 0));
+        this.stats.set(StatType.WeakspotHitRatePercent, new GenericStat(StatType.WeakspotHitRatePercent, 0));
         this.stats.set(StatType.StatusDamagePercent, new GenericStat(StatType.StatusDamagePercent, 0));
         this.stats.set(StatType.ElementalDamagePercent, new GenericStat(StatType.ElementalDamagePercent, 0));
         this.stats.set(StatType.WeaponDamagePercent, new GenericStat(StatType.WeaponDamagePercent, 0));
@@ -91,6 +92,15 @@ export class PlayerStats {
         const stat = this.stats.get(type);
         if (stat) {
             stat.add(value);
+        } else {
+            this.stats.set(type, new GenericStat(type, value));
+        }
+    }
+
+    set(type: StatType, value: number): void {
+        const stat = this.stats.get(type);
+        if (stat) {
+            stat.value = value;
         } else {
             this.stats.set(type, new GenericStat(type, value));
         }

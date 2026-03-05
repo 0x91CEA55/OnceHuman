@@ -3,10 +3,6 @@ import { Enemy } from '../models/enemy';
 import { EncounterConditions } from '../types/common';
 import { StatType, DamageTrait } from '../types/enums';
 import { StatAggregator } from './stat-aggregator';
-import { DamageProcessor } from './damage-processor';
-import { DamageResolutionStrategy } from './damage-resolution-strategy';
-import { DamageIntent } from '../models/damage';
-import { ConfigManager } from './config';
 import { auditLog } from './audit-log';
 
 import { runTriggerEvaluation, TriggerEvent, TriggerEvalContext } from './trigger-system';
@@ -15,7 +11,13 @@ import { TriggerType } from '../types/trigger-types';
 import { TriggerCounterKey, CooldownKey } from '../types/keys';
 import { RngService, MathRandomRng } from './rng';
 import { STATUS_REGISTRY } from '../data/status-registry';
-import { statValuesFromSnapshot } from './resolver';
+import { 
+    resolve, 
+    evaluateRolls, 
+    buildResolutionContext, 
+    statValuesFromSnapshot 
+} from './resolver';
+import { UNIVERSAL_BUCKETS, ROLL_REGISTRY } from './bucket-registry';
 
 export interface SimulationLogEntry {
     timestamp: number;
@@ -26,14 +28,14 @@ export interface SimulationLogEntry {
     statsSnapshot: Record<StatType, number>;
     activeBuffs: { id: string, name: string, stacks: number, remaining: number }[];
     activeDoTs: { id: string, name: string, stacks: number, remaining: number, nextTick: number }[];
-    activeEffects: any[]; // Snapshot of effects active at this moment
+    activeEffects: any[]; 
     bucketMultipliers: Record<string, number>;
 }
 
 export interface TelemetryTrack {
     timeAxis: number[];
     data: Partial<Record<StatType, number[]>>;
-    variance?: Partial<Record<StatType, number[]>>; // Standard Deviation cloud
+    variance?: Partial<Record<StatType, number[]>>; 
 }
 
 export interface MonteCarloResult {
@@ -48,14 +50,13 @@ export interface MonteCarloResult {
 }
 
 export class DamageEngine {
-    private processor: DamageProcessor;
     private primaryTarget: Enemy;
     private allEnemies: Enemy[] = [];
     private currentTime: number = 0;
     private logs: SimulationLogEntry[] = [];
     private accumulatedDamage: number = 0;
 
-    /** ADR-003: Per-simulation-run state. Reset at start of each mag dump. */
+    /** ADR-003: Per-simulation-run state. */
     private counters: Map<TriggerCounterKey, number> = new Map();
     private cooldowns: Map<CooldownKey, number> = new Map();
     private rng: RngService;
@@ -68,15 +69,12 @@ export class DamageEngine {
     constructor(
         private player: Player,
         private conditions: EncounterConditions,
-        strategy?: DamageResolutionStrategy,
+        _unusedStrategy?: any,
         rng?: RngService
     ) {
-        const activeStrategy = strategy || ConfigManager.getStrategy();
-        this.processor = new DamageProcessor(activeStrategy);
         this.rng = rng ?? new MathRandomRng();
 
-        auditLog.setStrategy(ConfigManager.getActiveStrategyType());
-        auditLog.log('Engine', 'Initialization', `Started DamageEngine with ${ConfigManager.getActiveStrategyType()} strategy`);
+        auditLog.log('Engine', 'Initialization', `Started DamageEngine with Universal data-driven paradigm`);
 
         this.primaryTarget = new Enemy('boss-1', 9999999);
         this.allEnemies = [this.primaryTarget];
@@ -90,15 +88,13 @@ export class DamageEngine {
         this.timeAxis = [];
         this.lastSampleTime = -0.1;
 
-        // ADR-003: Reset per-run trigger state (fixes EveryNHits counter state pollution bug)
         this.counters = new Map();
         this.cooldowns = new Map();
 
-        // Reset per-run status state
         this.primaryTarget.statusManager.clear();
         this.player.statusManager.clear();
 
-        // Initial aggregate to get baseline mag size and fire rate
+        // Initial aggregate
         StatAggregator.aggregate(this.player, this.conditions, 1.0, true);
 
         const weapon = this.player.loadout.weapon;
@@ -110,6 +106,10 @@ export class DamageEngine {
 
         for (let shotCount = 1; shotCount <= magSize; shotCount++) {
             const ammoPercent = (magSize - shotCount + 1) / magSize;
+            
+            // Set weakspot hit rate in player stats for the data-driven roll
+            this.player.stats.set(StatType.WeakspotHitRatePercent, this.conditions.weakspotHitRate * 100);
+            
             StatAggregator.aggregate(this.player, this.conditions, ammoPercent);
 
             this.simulateShot(shotCount);
@@ -161,35 +161,53 @@ export class DamageEngine {
     }
 
     private simulateShot(shotNumber: number) {
-        // Primary shot damage via existing DamageProcessor (ADR-002 primary migration: future work)
         const baseWeaponDmg = this.player.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
+        const statValues = statValuesFromSnapshot(this.player.stats.snapshot());
 
-        const intent = new DamageIntent(baseWeaponDmg, this.player, this.primaryTarget)
-            .addTrait(DamageTrait.Attack)
-            .addTrait(DamageTrait.Weapon)
-            .enableCrit()
-            .enableWeakspot();
+        // ADR-002: Build context and evaluate data-driven rolls (Crit, Weakspot, etc.)
+        const traits = new Set([DamageTrait.Attack, DamageTrait.Weapon]);
+        const ctx = buildResolutionContext(
+            traits,
+            this.conditions.enemyType,
+            statValues
+        );
 
-        const damage = this.processor.resolve(intent);
-        this.accumulatedDamage += damage;
-        this.log(this.currentTime, 'Shot', `Bullet #${shotNumber} deals ${Math.round(damage)}`, damage, intent);
+        // Execute rolls from ROLL_REGISTRY
+        evaluateRolls(ROLL_REGISTRY, ctx, this.rng);
 
-        // ADR-003: Fire OnHit trigger event
-        // trigger-system handles OnCrit/OnWeakspotHit internally via isCrit/isWeakspot flags
+        // Resolve damage through UNIVERSAL_BUCKETS
+        const { finalDamage, audit } = resolve(baseWeaponDmg, UNIVERSAL_BUCKETS, ctx);
+
+        this.accumulatedDamage += finalDamage;
+        
+        // Log with audit trail
+        const auditLogMap: Record<string, number> = {};
+        audit.forEach((v, k) => auditLogMap[k] = v);
+
+        this.logs.push({
+            timestamp: this.currentTime,
+            event: 'Shot',
+            description: `Bullet #${shotNumber} deals ${Math.round(finalDamage)}`,
+            damage: finalDamage,
+            accumulatedDamage: this.accumulatedDamage,
+            statsSnapshot: this.player.stats.snapshot(),
+            activeBuffs: [],
+            activeDoTs: [],
+            activeEffects: [],
+            bucketMultipliers: auditLogMap
+        });
+
+        // ADR-003: Fire Trigger event
         const triggerEvent: TriggerEvent = {
             triggerType: TriggerType.OnHit,
-            isCrit: intent.isCrit,
-            isWeakspot: intent.isWeakspot,
+            isCrit: ctx.flags.get('wasCrit') ?? false,
+            isWeakspot: ctx.flags.get('wasWeakspot') ?? false,
             passDepth: 0,
         };
 
         this.fireTriggers(triggerEvent);
     }
 
-    /**
-     * Evaluates all TriggerDefinitions for the given event and executes fired effects.
-     * ADR-003: Replaces CombatEventBus.emit() + TriggeredEffect.evaluate()/execute().
-     */
     private fireTriggers(event: TriggerEvent): void {
         const triggerDefs = this.player.loadout.getAllTriggerDefinitions();
         const statValues = statValuesFromSnapshot(this.player.stats.snapshot());
@@ -285,7 +303,7 @@ export class DamageEngine {
     getLogs() { return this.logs; }
     getAccumulatedDamage() { return this.accumulatedDamage; }
 
-    private log(timestamp: number, event: string, description: string, damage?: number, intent?: DamageIntent) {
+    private log(timestamp: number, event: string, description: string, damage?: number) {
         this.logs.push({
             timestamp,
             event,
@@ -296,7 +314,7 @@ export class DamageEngine {
             activeBuffs: [],
             activeDoTs: [],
             activeEffects: [],
-            bucketMultipliers: intent?.bucketMultipliers ?? {}
+            bucketMultipliers: {}
         });
     }
 }

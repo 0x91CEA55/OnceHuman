@@ -18,7 +18,7 @@ import { DoTInstance, BuffInstance } from '../types/status-types';
 import { DamageTrait, StatType, EnemyType } from '../types/enums';
 import { CooldownKey } from '../types/keys';
 import { DoTDefinition, BuffDefinition } from '../types/status-types';
-import { resolve, buildResolutionContext, statValuesFromSnapshot } from './resolver';
+import { resolve, buildResolutionContext } from './resolver';
 import { UNIVERSAL_BUCKETS } from './bucket-registry';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,9 +95,8 @@ export function executeEffectDef(effect: EffectDef, ctx: EffectExecutionContext)
             const resCtx = buildResolutionContext(
                 new Set(effect.traits),
                 ctx.encounterEnemyType,
-                false, // Secondary damage does not crit by default (future: keyword crit extension)
-                false,
                 ctx.statValues,
+                new Map([['wasCrit', false], ['wasWeakspot', false]]) // Secondary damage defaults
             );
             const { finalDamage } = resolve(baseDamage, UNIVERSAL_BUCKETS, resCtx);
 
@@ -271,9 +270,8 @@ export function tickDoTs(
                 const resCtx = buildResolutionContext(
                     new Set(def.traits),
                     ctx.encounterEnemyType,
-                    false,
-                    false,
                     ctx.statValues,
+                    new Map([['wasCrit', false], ['wasWeakspot', false]])
                 );
                 const { finalDamage } = resolve(baseDamage, UNIVERSAL_BUCKETS, resCtx);
                 const totalDamage = finalDamage * dot.currentStacks;
