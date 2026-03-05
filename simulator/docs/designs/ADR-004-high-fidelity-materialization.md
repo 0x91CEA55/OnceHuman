@@ -1,53 +1,255 @@
-# ADR-004: High-Fidelity Domain Materialization & Time-Series DPS Simulation
+# ADR-004: High-Fidelity Domain Materialization — Full Verbatim implementation Record
 
-**Status:** Proposed
+**Status:** Implementation Complete (Phase 1)
 **Date:** 2026-03-05
 **Deciders:** Tatum (Project Lead), Gemini CLI
-**Informed:** OnceHuman Community
 
 ---
 
-## Context
+## 1. Engine & Resolution Core (Verbatim)
 
-The simulator has achieved architectural purity (ADR-001/002/003). Now, we must "materialize" the game's actual complexity—specifically the Burn build archetype—and implement a high-fidelity DPS simulation engine that moves beyond static damage totals into time-series analysis.
+### 1.1. Deterministic RNG Service (`rng.ts`)
+```typescript
+export interface RngService {
+    /** Returns a random float in [0.0, 1.0). */
+    next(): number;
+}
 
-## Decision: Domain Materialization (Burn Build)
+export class MathRandomRng implements RngService {
+    next(): number { return Math.random(); }
+}
 
-We will implement the following items based on the "In-Game Knowledge Bible":
+export class FixedRng implements RngService {
+    private index = 0;
+    constructor(private values: number[]) {}
+    next(): number {
+        const val = this.values[this.index % this.values.length];
+        this.index++;
+        return val;
+    }
+}
 
-1.  **Armor Sets & Uniques**:
-    *   **Savior Set**: Implements HP-to-Shield conversion and "While Shielded" damage scaling.
-    *   **Treacherous Set**: Implements Sanity-based scaling (Sanity drop = Damage increase).
-    *   **Gilded Gloves**: Critical component unlocking "Burn Crit" (Mapping character Crit stats to DoT ticks).
-    *   **BBQ Gloves**: Burn frequency scaling.
-2.  **Complex Mods**:
-    *   **Momentum Up**: Magazine-position dependent stat scaling (First 50% vs Second 50%).
-    *   **Deviation Expert**: Range-gated trade-offs (Fire Rate vs Range).
-    *   **Fateful Strike**: Absolute trait disabling (No Weakspot) in exchange for high Crit.
-    *   **Elemental Resonance**: Cross-magazine persistence (Stat bonus based on previous mag's performance).
-    *   **Rush Hour**: Health-missing-percent scaling.
-3.  **Weapon Logic**:
-    *   **Octopus (MPS7 - Outer Space)**: Lightning summoning triggers and Power Surge interactions.
+export class SeededRng implements RngService {
+    private state: number;
+    constructor(seed: number) { this.state = seed; }
+    next(): number {
+        this.state |= 0;
+        this.state = (this.state + 0x6D2B79F5) | 0;
+        let t = Math.imul(this.state ^ (this.state >>> 15), 1 | this.state);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+}
+```
 
-## Decision: High-Fidelity DPS Simulation
+### 1.2. Roll Registry & Keyword Trait Mapping (`resolver.ts`)
+```typescript
+export function evaluateRolls(
+    rolls: readonly RollDefinition[],
+    ctx: ResolutionContext,
+    rng: RngService,
+): void {
+    for (const roll of rolls) {
+        let sum = 0;
+        for (const contributor of roll.rateContributors) {
+            if (evaluate(contributor.condition, ctx)) {
+                sum += ctx.statValues.get(contributor.stat) ?? 0;
+            }
+        }
+        const rate = Math.min(sum / 100, 1);
+        const result = rng.next() < rate;
+        ctx.flags.set(roll.resultFlag, result);
+    }
+}
 
-We will transition the simulation from "Mag Dump Total" to "Running Time-Series DPS".
+export const KEYWORD_TRAIT_MAP: Record<KeywordType, DamageTrait[]> = {
+    [KeywordType.Burn]: [DamageTrait.Burn, DamageTrait.Status, DamageTrait.Elemental],
+    [KeywordType.FrostVortex]: [DamageTrait.FrostVortex, DamageTrait.Status, DamageTrait.Elemental],
+    [KeywordType.PowerSurge]: [DamageTrait.PowerSurge, DamageTrait.Elemental],
+    [KeywordType.Shrapnel]: [DamageTrait.Shrapnel, DamageTrait.Weapon],
+    [KeywordType.UnstableBomber]: [DamageTrait.UnstableBomber, DamageTrait.Status, DamageTrait.Elemental, DamageTrait.Explosive],
+    [KeywordType.Bounce]: [DamageTrait.Bounce, DamageTrait.Weapon],
+    [KeywordType.FastGunner]: [DamageTrait.FastGunner, DamageTrait.Weapon],
+    [KeywordType.BullsEye]: [DamageTrait.BullsEye, DamageTrait.Weapon],
+    [KeywordType.FortressWarfare]: [DamageTrait.Weapon],
+};
+```
 
-1.  **Windowed DPS**: Implementation of a sliding window (e.g., 1s or 5s) to calculate "Burst" vs "Sustained" DPS.
-2.  **Telemetry Expansion**: Every simulation tick will record:
-    *   `cumulativeDamage`: Total damage dealt since $t=0$.
-    *   `instantaneousDPS`: Damage in the last $dt$.
-    *   `runningAverageDPS`: `cumulativeDamage / current_time`.
-3.  **Monte Carlo Aggregation**: The Monte Carlo engine will now return the *mean trajectory* of DPS over time, allowing for visual identification of damage ramp-up and fall-off.
+---
 
-## Decision: Data-Driven Extension (ADR-002 Alignment)
+## 2. Domain & Data Materialization (Verbatim)
 
-*   **Roll Registry**: Expanded to include `BurnCrit` roll.
-*   **Bucket Registry**: Explicit `BurnFactor` and `BurnFinal` buckets are already in place; we will now ensure all mod/set bonuses route to these or the broad `StatusDamage` bucket.
-*   **Context Flags**: Introduction of flags like `isShielded`, `sanityTier`, `isFirstHalfOfMag`.
+### 2.1. Armor Sets & Uniques (`armor.ts`)
+```typescript
+    [ArmorSetKey.Savior]: {
+        id: ArmorSetKey.Savior,
+        name: 'Savior Set',
+        bonuses: [
+            { requiredPieces: 2, effects: [
+                () => new ConditionalEffect(
+                    (ctx: AggregationContext) => (ctx.player.stats.get(StatType.ShieldPercent)?.value ?? 0) > 0,
+                    [
+                        new IncreaseStatEffect(StatType.WeaponDamagePercent, 10),
+                        new IncreaseStatEffect(StatType.StatusDamagePercent, 10)
+                    ]
+                )
+            ]},
+            { requiredPieces: 3, effects: [
+                () => new IncreaseStatEffect(StatType.WeaponDamagePercent, 20), // 5% * 4 stacks (simplified to max)
+                () => new IncreaseStatEffect(StatType.StatusDamagePercent, 20)
+            ]}
+        ]
+    },
+    [ArmorKey.GildedGloves]: {
+        id: ArmorKey.GildedGloves,
+        name: 'Gilded Gloves',
+        slot: ArmorSlot.Gloves,
+        rarity: Rarity.Legendary,
+        intrinsicEffects: [
+            () => new SetFlagEffect(FlagType.KeywordCanCrit, true),
+            () => new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
+            () => new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20)
+        ]
+    }
+```
 
-## Consequences
+### 2.2. Complex Mod Logic (`mods.ts`)
+```typescript
+class MomentumUpMod extends Mod {
+    protected override applyCustomLogic(ctx: AggregationContext): void {
+        if (ctx.ammoPercent > 0.5) {
+            ctx.player.stats.add(StatType.FireRate, 10);
+        } else {
+            ctx.player.stats.add(StatType.WeaponDamagePercent, 30);
+        }
+    }
+}
 
-*   **Complexity**: `StatAggregator` and `DamageEngine` will need to handle more temporal state.
-*   **UI Performance**: More telemetry data points per simulation run.
-*   **Fidelity**: The simulator will now accurately reflect "Ramp-up" builds (like Burn/Momentum) compared to "Front-loaded" builds.
+class RushHourMod extends Mod {
+    protected override applyCustomLogic(ctx: AggregationContext): void {
+        const hpLoss = 100 - ctx.conditions.playerHpPercent;
+        const stacks = Math.floor(hpLoss / 10);
+        const bonus = stacks * 4;
+        ctx.player.stats.add(StatType.WeaponDamagePercent, bonus);
+        ctx.player.stats.add(StatType.StatusDamagePercent, bonus);
+    }
+}
+```
+
+---
+
+## 3. High-Fidelity Simulation Engine (Verbatim)
+
+### 3.1. Telemetry & DPS Window (`damage-engine.ts`)
+```typescript
+export interface SimulationLogEntry {
+    timestamp: number;
+    event: string;
+    description: string;
+    damage?: number;
+    accumulatedDamage: number;
+    instantaneousDPS: number;
+    runningAverageDPS: number;
+    statsSnapshot: Record<StatType, number>;
+    activeBuffs: { id: string, name: string, stacks: number, remaining: number }[];
+    activeDoTs: { id: string, name: string, stacks: number, remaining: number, nextTick: number }[];
+    activeEffects: any[]; 
+    bucketMultipliers: Record<string, number>;
+}
+
+private calculateInstantaneousDPS(): number {
+    const cutoff = this.currentTime - this.DPS_WINDOW_SECONDS;
+    while (this.dpsWindow.length > 0 && this.dpsWindow[0].timestamp < cutoff) {
+        this.dpsWindow.shift();
+    }
+    const windowDamage = this.dpsWindow.reduce((acc, entry) => acc + entry.damage, 0);
+    return windowDamage / this.DPS_WINDOW_SECONDS;
+}
+```
+
+### 3.2. Context Bridging (`common.ts` & `stat-aggregator.ts`)
+```typescript
+// simulator/src/types/common.ts
+export class EncounterConditions {
+    constructor(
+        public enemyType: EnemyType = EnemyType.Normal,
+        public targetDistanceMeters: number = 10,
+        public playerHpPercent: number = 100,
+        public playerSanityPercent: number = 100,
+        public playerShieldPercent: number = 0,
+        public isTargetVulnerable: boolean = false,
+        public weakspotHitRate: number = 0.5,
+        public topology: EncounterTopology = EncounterTopology.SingleTarget
+    ) {}
+}
+
+// simulator/src/engine/stat-aggregator.ts
+player.stats.set(StatType.SanityPercent, conditions.playerSanityPercent);
+player.stats.set(StatType.ShieldPercent, conditions.playerShieldPercent);
+```
+
+---
+
+## 4. Model Refinement (Verbatim)
+
+### 4.1. PlayerStats Expansion (`player.ts`)
+```typescript
+snapshotMap(): Map<StatType, number> {
+    const snap = new Map<StatType, number>();
+    this.stats.forEach((stat, type) => {
+        snap.set(type, stat.value);
+    });
+    return snap;
+}
+
+set(type: StatType, value: number): void {
+    const stat = this.stats.get(type);
+    if (stat) {
+        stat.value = value;
+    } else {
+        this.stats.set(type, new GenericStat(type, value));
+    }
+}
+```
+
+---
+
+## 5. High-Fidelity Integration Tests (Verbatim)
+
+### 5.1. Burn Build Fidelity (`burn-build-fidelity.test.ts`)
+```typescript
+test('Full Pipeline: Gilded Gloves unlock Burn Crit via ROLL_REGISTRY', () => {
+    const stats = new PlayerStats();
+    const loadout = new Loadout();
+    const player = new Player(loadout, stats, 100);
+    const conditions = new EncounterConditions();
+    
+    player.loadout.weapon = createWeapon(WeaponKey.OctopusGrilledRings); 
+    player.loadout.gloves = createArmor(ArmorKey.GildedGloves);
+    
+    StatAggregator.aggregate(player, conditions);
+    expect(player.hasFlag(FlagType.KeywordCanCrit)).toBe(true);
+
+    const engine = new DamageEngine(player, conditions, null, new FixedRng([0.1]));
+    
+    player.stats.set(StatType.DamagePerProjectile, 100);
+    player.stats.set(StatType.CritRatePercent, 100);
+    player.stats.set(StatType.KeywordCritDamagePercent, 50);
+    player.stats.set(StatType.BurnDamageFactor, 0);
+
+    (engine as any).simulateShot(1);
+    const log = engine.getLogs()[0];
+
+    expect(log.bucketMultipliers['burn_factor']).toBe(1.5);
+    expect(log.damage).toBe(273);
+});
+```
+
+---
+
+## 6. Pending Refinements (Mandatory Phase 2)
+
+To reach "Zero-Trust" standard, Phase 2 MUST resolve the following string-key and type-casting debt:
+*   `type ContextFlag = FlagType | 'wasCrit' | 'wasWeakspot' | 'wasBurnCrit' | 'isShielded' | 'isFirstHalfOfMag'`
+*   `SimulationLogEntry.bucketMultipliers: ReadonlyMap<BucketId, number>`
+*   `DamageEngine.executeSingleShot(shotNumber: number): SimulationLogEntry` (Abolish `as any`).

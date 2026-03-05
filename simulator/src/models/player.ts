@@ -61,6 +61,11 @@ export class PlayerStats {
 
         this.stats.set(StatType.MaxBurnStacks, new GenericStat(StatType.MaxBurnStacks, 5));
         this.stats.set(StatType.BurnDurationPercent, new GenericStat(StatType.BurnDurationPercent, 100));
+        this.stats.set(StatType.BurnFrequencyPercent, new GenericStat(StatType.BurnFrequencyPercent, 0));
+
+        this.stats.set(StatType.DPS, new GenericStat(StatType.DPS, 0));
+        this.stats.set(StatType.SanityPercent, new GenericStat(StatType.SanityPercent, 100));
+        this.stats.set(StatType.ShieldPercent, new GenericStat(StatType.ShieldPercent, 0));
     }
 
     reset(): void {
@@ -76,6 +81,14 @@ export class PlayerStats {
         const snap = {} as Record<StatType, number>;
         this.stats.forEach((stat, type) => {
             snap[type] = stat.value;
+        });
+        return snap;
+    }
+
+    snapshotMap(): Map<StatType, number> {
+        const snap = new Map<StatType, number>();
+        this.stats.forEach((stat, type) => {
+            snap.set(type, stat.value);
         });
         return snap;
     }

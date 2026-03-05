@@ -27,14 +27,13 @@ describe('PhysicalDamagePipeline Strategy Verification', () => {
         const momentumUp = createModInstance(ModKey.MomentumUp, DEFAULT_SUBSTATS);
         loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, momentumUp, WeaponType.Pistol, new Burn(), pistolStats, []);
 
-        const conditions: EncounterConditions = {
-            enemyType: EnemyType.Normal,
-            targetDistanceMeters: 10,
-            playerHpPercent: 100,
-            isTargetVulnerable: false,
-            weakspotHitRate: 0,
-            topology: EncounterTopology.SingleTarget
-        };
+        const conditions = new EncounterConditions();
+        conditions.enemyType = EnemyType.Normal;
+        conditions.targetDistanceMeters = 10;
+        conditions.playerHpPercent = 100;
+        conditions.isTargetVulnerable = false;
+        conditions.weakspotHitRate = 0.5;
+        conditions.topology = EncounterTopology.SingleTarget;
 
         // 1. First half of mag (Should have +10% Fire Rate, 0% Weapon DMG)
         StatAggregator.aggregate(player, conditions, 1.0, true);
@@ -55,14 +54,13 @@ describe('PhysicalDamagePipeline Strategy Verification', () => {
         const fateful = createModInstance(ModKey.FatefulStrike, DEFAULT_SUBSTATS);
         loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, fateful, WeaponType.Pistol, new Burn(), pistolStats, []);
 
-        const conditions: EncounterConditions = {
-            enemyType: EnemyType.Normal,
-            targetDistanceMeters: 10,
-            playerHpPercent: 100,
-            isTargetVulnerable: false,
-            weakspotHitRate: 1.0,
-            topology: EncounterTopology.SingleTarget
-        };
+        const conditions = new EncounterConditions();
+        conditions.enemyType = EnemyType.Normal;
+        conditions.targetDistanceMeters = 10;
+        conditions.playerHpPercent = 100;
+        conditions.isTargetVulnerable = false;
+        conditions.weakspotHitRate = 0.5;
+        conditions.topology = EncounterTopology.SingleTarget;
 
         StatAggregator.aggregate(player, conditions, 1.0, true);
 

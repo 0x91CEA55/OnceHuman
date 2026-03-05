@@ -12,13 +12,13 @@
  * See: simulator/docs/designs/ADR-002-universal-bucket-topology.md
  */
 
-import { BucketDef, BucketId, ContributorDef, ConditionType, RollDefinition } from '../types/resolution';
-import { StatType, KeywordType, EnemyType } from '../types/enums';
+import { BucketDef, BucketId, ContributorDef, ConditionType, RollDefinition, ContextFlag } from '../types/resolution';
+import { StatType, KeywordType, EnemyType, FlagType } from '../types/enums';
 
 const ALWAYS = { type: ConditionType.Always } as const;
 const kw = (keyword: KeywordType) => ({ type: ConditionType.KeywordMatches, keyword } as const);
 const target = (targetType: EnemyType) => ({ type: ConditionType.TargetTypeMatches, targetType } as const);
-const flag = (flag: string) => ({ type: ConditionType.FlagActive, flag } as const);
+const flag = (flag: ContextFlag) => ({ type: ConditionType.FlagActive, flag } as const);
 
 /**
  * Registry of all probabilistic "Rolls" in the engine.
@@ -44,11 +44,11 @@ export const ROLL_REGISTRY: readonly RollDefinition[] = [
         rateContributors: [
             { 
                 stat: StatType.CritRatePercent, 
-                condition: flag('keyword_can_crit') 
+                condition: flag(FlagType.KeywordCanCrit) 
             },
             { 
                 stat: StatType.KeywordCritRatePercent, 
-                condition: flag('keyword_can_crit') 
+                condition: flag(FlagType.KeywordCanCrit) 
             }
         ],
         resultFlag: 'wasBurnCrit'

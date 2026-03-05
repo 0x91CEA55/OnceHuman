@@ -5,6 +5,8 @@ export class EncounterConditions {
         public enemyType: EnemyType = EnemyType.Normal,
         public targetDistanceMeters: number = 10,
         public playerHpPercent: number = 100,
+        public playerSanityPercent: number = 100,
+        public playerShieldPercent: number = 0,
         public isTargetVulnerable: boolean = false,
         public weakspotHitRate: number = 0.5,
         public topology: EncounterTopology = EncounterTopology.SingleTarget

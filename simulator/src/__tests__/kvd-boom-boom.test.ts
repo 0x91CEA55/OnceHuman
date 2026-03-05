@@ -12,14 +12,13 @@ describe('KVD Boom Boom & Burn Synergy', () => {
     let conditions: EncounterConditions;
 
     beforeEach(() => {
-        conditions = {
-            enemyType: EnemyType.Boss,
-            targetDistanceMeters: 10,
-            playerHpPercent: 100,
-            isTargetVulnerable: false,
-            weakspotHitRate: 0.5,
-            topology: EncounterTopology.SingleTarget
-        };
+        conditions = new EncounterConditions();
+        conditions.enemyType = EnemyType.Boss;
+        conditions.targetDistanceMeters = 10;
+        conditions.playerHpPercent = 100;
+        conditions.isTargetVulnerable = false;
+        conditions.weakspotHitRate = 0.5;
+        conditions.topology = EncounterTopology.SingleTarget;
         const loadout = new Loadout();
 
         // Provide Psi Intensity via Armor so it survives StatAggregator.aggregate()

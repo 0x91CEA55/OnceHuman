@@ -23,14 +23,13 @@ describe('PhysicalDamagePipeline Attack Multipliers', () => {
         // Rust Pistol base damage is 128 (using DE50 Jaws as reference for high base)
         loadout.weapon = createWeapon(WeaponKey.DE50Jaws);
 
-        const conditions: EncounterConditions = {
-            enemyType: EnemyType.Normal,
-            targetDistanceMeters: 10,
-            playerHpPercent: 100,
-            isTargetVulnerable: false,
-            weakspotHitRate: 0,
-            topology: EncounterTopology.SingleTarget
-        };
+        const conditions = new EncounterConditions();
+        conditions.enemyType = EnemyType.Normal;
+        conditions.targetDistanceMeters = 10;
+        conditions.playerHpPercent = 100;
+        conditions.isTargetVulnerable = false;
+        conditions.weakspotHitRate = 0.5;
+        conditions.topology = EncounterTopology.SingleTarget;
 
         // 1. Base case: 0% Attack Bonus
         StatAggregator.aggregate(player, conditions);

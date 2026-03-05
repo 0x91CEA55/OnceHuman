@@ -15,23 +15,32 @@ import {
     resolve, 
     evaluateRolls, 
     buildResolutionContext, 
-    statValuesFromSnapshot 
+    statValuesFromSnapshot,
+    KEYWORD_TRAIT_MAP
 } from './resolver';
 import { UNIVERSAL_BUCKETS, ROLL_REGISTRY } from './bucket-registry';
+import { BucketId, ContextFlag } from '../types/resolution';
 
+/**
+ * ADR-005: Type-Safe Simulation Log
+ * Abolishes string keys in favor of enums and includes mandatory snapshots.
+ */
 export interface SimulationLogEntry {
-    timestamp: number;
-    event: string;
-    description: string;
-    damage?: number;
-    accumulatedDamage: number;
-    instantaneousDPS: number;
-    runningAverageDPS: number;
-    statsSnapshot: Record<StatType, number>;
-    activeBuffs: { id: string, name: string, stacks: number, remaining: number }[];
-    activeDoTs: { id: string, name: string, stacks: number, remaining: number, nextTick: number }[];
-    activeEffects: any[]; 
-    bucketMultipliers: Record<string, number>;
+    readonly timestamp: number;
+    readonly event: string;
+    readonly description: string;
+    readonly damage: number;
+    readonly accumulatedDamage: number;
+    readonly instantaneousDPS: number;
+    readonly runningAverageDPS: number;
+    /** Type-safe audit trail keyed by BucketId. */
+    readonly bucketMultipliers: ReadonlyMap<BucketId, number>;
+    /** Verifiable snapshot of flags active during this specific resolution event. */
+    readonly flagsSnapshot: ReadonlySet<ContextFlag>;
+    readonly statsSnapshot: Record<StatType, number>;
+    readonly activeBuffs: { id: string, name: string, stacks: number, remaining: number }[];
+    readonly activeDoTs: { id: string, name: string, stacks: number, remaining: number, nextTick: number }[];
+    readonly activeEffects: any[]; 
 }
 
 export interface TelemetryTrack {
@@ -90,6 +99,14 @@ export class DamageEngine {
 
         this.primaryTarget = new Enemy('boss-1', 9999999);
         this.allEnemies = [this.primaryTarget];
+    }
+
+    /**
+     * ADR-005: Public Simulation Entry Point
+     * Provides a typed API for integration tests, abolishing 'as any' escapes.
+     */
+    public executeShot(shotNumber: number): SimulationLogEntry {
+        return this.simulateShot(shotNumber);
     }
 
     simulateMagDump(): SimulationLogEntry[] {
@@ -193,16 +210,26 @@ export class DamageEngine {
         this.dpsWindow.push({ timestamp: this.currentTime, damage: amount });
     }
 
-    private simulateShot(shotNumber: number) {
+    private simulateShot(shotNumber: number): SimulationLogEntry {
         const baseWeaponDmg = this.player.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
         const statValues = statValuesFromSnapshot(this.player.stats.snapshot());
 
         // ADR-002: Build context and evaluate data-driven rolls (Crit, Weakspot, etc.)
         const traits = new Set([DamageTrait.Attack, DamageTrait.Weapon]);
+        if (this.player.loadout.weapon) {
+            const kwTraits = KEYWORD_TRAIT_MAP[this.player.loadout.weapon.keyword.type];
+            if (kwTraits) kwTraits.forEach(t => traits.add(t));
+        }
+        
+        // Map player-level flags (e.g. from Gilded Gloves) to resolution context
+        const initialFlags = new Map<ContextFlag, boolean>();
+        this.player.flags.forEach((v, k) => initialFlags.set(k as ContextFlag, v));
+
         const ctx = buildResolutionContext(
             traits,
             this.conditions.enemyType,
-            statValues
+            statValues,
+            initialFlags
         );
 
         // Execute rolls from ROLL_REGISTRY
@@ -213,11 +240,11 @@ export class DamageEngine {
 
         this.recordDamageEvent(finalDamage);
         
-        // Log with audit trail
-        const auditLogMap: Record<string, number> = {};
-        audit.forEach((v, k) => auditLogMap[k] = v);
+        // ADR-005: Capture snapshots for bit-perfect verification
+        const flagsSnapshot = new Set<ContextFlag>();
+        ctx.flags.forEach((v, k) => { if (v) flagsSnapshot.add(k); });
 
-        this.logs.push({
+        const logEntry: SimulationLogEntry = {
             timestamp: this.currentTime,
             event: 'Shot',
             description: `Bullet #${shotNumber} deals ${Math.round(finalDamage)}`,
@@ -229,8 +256,11 @@ export class DamageEngine {
             activeBuffs: [],
             activeDoTs: [],
             activeEffects: [],
-            bucketMultipliers: auditLogMap
-        });
+            bucketMultipliers: new Map(audit),
+            flagsSnapshot
+        };
+
+        this.logs.push(logEntry);
 
         // ADR-003: Fire Trigger event
         const triggerEvent: TriggerEvent = {
@@ -241,6 +271,8 @@ export class DamageEngine {
         };
 
         this.fireTriggers(triggerEvent);
+
+        return logEntry;
     }
 
     private fireTriggers(event: TriggerEvent): void {
@@ -342,8 +374,8 @@ export class DamageEngine {
     getLogs() { return this.logs; }
     getAccumulatedDamage() { return this.accumulatedDamage; }
 
-    private log(timestamp: number, event: string, description: string, damage?: number) {
-        this.logs.push({
+    private log(timestamp: number, event: string, description: string, damage: number = 0) {
+        const logEntry: SimulationLogEntry = {
             timestamp,
             event,
             description,
@@ -355,7 +387,9 @@ export class DamageEngine {
             activeBuffs: [],
             activeDoTs: [],
             activeEffects: [],
-            bucketMultipliers: {}
-        });
+            bucketMultipliers: new Map(), // No buckets for generic events
+            flagsSnapshot: new Set()
+        };
+        this.logs.push(logEntry);
     }
 }

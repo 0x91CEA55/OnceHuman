@@ -1,45 +1,49 @@
 /**
- * RNG service interface + implementations.
+ * ADR-003: Deterministic RNG Service
  *
- * Injecting RNG via this interface makes all probabilistic decisions
- * (ChanceCondition, crit rolls, weakspot rolls) deterministically replayable
- * when a SeededRng is provided. The default MathRandomRng delegates to
- * Math.random() for normal simulation runs.
+ * All probabilistic events (Crits, Weakspots, Procs) MUST use this service
+ * to ensure simulation reproducibility (Monte Carlo seeds).
  */
 
 export interface RngService {
-    /** Returns a float in [0, 1). */
+    /** Returns a random float in [0.0, 1.0). */
     next(): number;
 }
 
-/** Default implementation — delegates to Math.random(). */
+/** Default implementation using Math.random(). */
 export class MathRandomRng implements RngService {
-    next(): number { return Math.random(); }
+    next(): number {
+        return Math.random();
+    }
 }
 
-/**
- * Mulberry32 seeded PRNG — fast, good distribution, simple state.
- * Produces a deterministic sequence from a 32-bit integer seed.
- *
- * Use case: Monte Carlo iterations — pass a per-iteration seed derived
- * from a master seed so each iteration is independently reproducible.
+/** Deterministic implementation for testing. Returns values from a fixed sequence. */
+export class FixedRng implements RngService {
+    private index = 0;
+    constructor(private values: number[]) {}
+
+    next(): number {
+        const val = this.values[this.index % this.values.length];
+        this.index++;
+        return val;
+    }
+}
+
+/** 
+ * Seeded implementation for Monte Carlo simulation reproducibility.
+ * Simple Mulberry32 algorithm.
  */
 export class SeededRng implements RngService {
     private state: number;
-
     constructor(seed: number) {
-        this.state = seed >>> 0; // Ensure unsigned 32-bit
+        this.state = seed;
     }
 
     next(): number {
-        this.state = (this.state + 0x6D2B79F5) >>> 0;
+        this.state |= 0;
+        this.state = (this.state + 0x6D2B79F5) | 0;
         let t = Math.imul(this.state ^ (this.state >>> 15), 1 | this.state);
         t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    }
-
-    /** Returns a clone at the current state — useful for snapshot/restore. */
-    clone(): SeededRng {
-        return new SeededRng(this.state);
     }
 }

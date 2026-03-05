@@ -128,26 +128,26 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
     },
     [WeaponKey.OctopusGrilledRings]: {
         id: WeaponKey.OctopusGrilledRings,
-        name: "MPS7 - Outer Space (Octopus)",
-        type: "smgs",
+        name: "EBR-14: Octopus! Grilled Rings!",
+        type: "sniper_rifles",
         rarity: "legendary",
         base_stats: {
-            damage_per_projectile: 240,
+            damage_per_projectile: 471,
             projectiles_per_shot: 1,
-            fire_rate: 850,
-            magazine_capacity: 35,
-            crit_rate_percent: 8,
+            fire_rate: 300,
+            magazine_capacity: 20,
+            crit_rate_percent: 5,
             weakspot_damage_percent: 50,
-            crit_damage_percent: 30,
+            crit_damage_percent: 40,
         },
         mechanics: {
-            description: "30% chance to apply Power Surge. On 12 hits, summon lightning (500% Psi Intensity Shock DMG). Reload grants 40% Power Surge bonus for 6s. Shock Elemental DMG +30%.",
+            description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3. Shock Elemental DMG +30%.",
             effects: [{
-                ability: "power_surge",
+                ability: "burn",
                 type: ''
             }]
         },
-        description: "Power Surge & Lightning Summoning"
+        description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3."
     }
 };
 

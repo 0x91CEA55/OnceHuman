@@ -18,6 +18,7 @@ import {
     BucketId,
     ConditionType,
     RollDefinition,
+    ContextFlag,
 } from '../types/resolution';
 import { StatType, DamageTrait, KeywordType, EnemyType } from '../types/enums';
 import { RngService } from './rng';
@@ -142,7 +143,7 @@ export function buildResolutionContext(
     traits: ReadonlySet<DamageTrait>,
     targetType: EnemyType,
     statValues: ReadonlyMap<StatType, number>,
-    initialFlags: Map<string, boolean> = new Map(),
+    initialFlags: Map<ContextFlag, boolean> = new Map(),
     unlockedKeywordCrits: ReadonlySet<KeywordType> = new Set(),
 ): ResolutionContext {
     // Derive active keywords from trait set
@@ -172,6 +173,18 @@ export function buildResolutionContext(
         statValues,
     };
 }
+
+export const KEYWORD_TRAIT_MAP: Record<KeywordType, DamageTrait[]> = {
+    [KeywordType.Burn]: [DamageTrait.Burn, DamageTrait.Status, DamageTrait.Elemental],
+    [KeywordType.FrostVortex]: [DamageTrait.FrostVortex, DamageTrait.Status, DamageTrait.Elemental],
+    [KeywordType.PowerSurge]: [DamageTrait.PowerSurge, DamageTrait.Elemental],
+    [KeywordType.Shrapnel]: [DamageTrait.Shrapnel, DamageTrait.Weapon],
+    [KeywordType.UnstableBomber]: [DamageTrait.UnstableBomber, DamageTrait.Status, DamageTrait.Elemental, DamageTrait.Explosive],
+    [KeywordType.Bounce]: [DamageTrait.Bounce, DamageTrait.Weapon],
+    [KeywordType.FastGunner]: [DamageTrait.FastGunner, DamageTrait.Weapon],
+    [KeywordType.BullsEye]: [DamageTrait.BullsEye, DamageTrait.Weapon],
+    [KeywordType.FortressWarfare]: [DamageTrait.Weapon],
+};
 
 /** Extracts a ReadonlyMap<StatType, number> from a PlayerStats snapshot object. */
 export function statValuesFromSnapshot(snapshot: Record<string, number>): ReadonlyMap<StatType, number> {

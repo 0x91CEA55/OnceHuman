@@ -5,7 +5,20 @@
  * See: simulator/docs/designs/ADR-002-universal-bucket-topology.md
  */
 
-import { StatType, DamageTrait, KeywordType, EnemyType } from './enums';
+import { StatType, DamageTrait, KeywordType, EnemyType, FlagType } from './enums';
+
+/**
+ * ADR-005: Context Flags
+ * Union of all valid flags used during damage resolution.
+ * Combines permanent gear flags with transient session flags (crits, weakspots).
+ */
+export type ContextFlag = 
+    | FlagType 
+    | 'wasCrit' 
+    | 'wasWeakspot' 
+    | 'wasBurnCrit' 
+    | 'isShielded' 
+    | 'isFirstHalfOfMag';
 
 /**
  * Each multiplicative bucket in the universal topology.
@@ -75,7 +88,7 @@ export type ContributionCondition =
     | { readonly type: ConditionType.ElementMatches;      readonly element: ElementType }
     | { readonly type: ConditionType.TargetTypeMatches;    readonly targetType: EnemyType }
     | { readonly type: ConditionType.KeywordCritUnlocked;  readonly keyword: KeywordType }
-    | { readonly type: ConditionType.FlagActive;           readonly flag: string }
+    | { readonly type: ConditionType.FlagActive;           readonly flag: ContextFlag }
     | { readonly type: ConditionType.Comparison;           readonly stat: StatType; readonly operator: ComparisonOperator; readonly value: number }
     | { readonly type: ConditionType.And;                  readonly conditions: readonly ContributionCondition[] }
     | { readonly type: ConditionType.Or;                   readonly conditions: readonly ContributionCondition[] }
@@ -102,7 +115,7 @@ export interface BucketDef {
 export interface RollDefinition {
     readonly id: string;
     readonly rateContributors: readonly ContributorDef[];
-    readonly resultFlag: string;
+    readonly resultFlag: ContextFlag;
 }
 
 /**
@@ -114,8 +127,8 @@ export interface ResolutionContext {
     readonly keywords: ReadonlySet<KeywordType>;
     readonly elements: ReadonlySet<ElementType>;
     readonly targetType: EnemyType;
-    /** Generic flags map for extensible context state (e.g., 'wasCrit', 'isTargetBurning'). */
-    readonly flags: Map<string, boolean>;
+    /** Strictly-typed flags map. */
+    readonly flags: Map<ContextFlag, boolean>;
     readonly unlockedKeywordCrits: ReadonlySet<KeywordType>;
     /** Pre-aggregated stat pool from PlayerStats. */
     readonly statValues: ReadonlyMap<StatType, number>;
