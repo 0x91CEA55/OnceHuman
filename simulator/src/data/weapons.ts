@@ -1,10 +1,21 @@
-import { KeywordType, WeaponKey } from '../types/enums';
+import { KeywordType, WeaponKey, StatType } from '../types/enums';
 import { Weapon, WeaponStats, Mod } from '../models/equipment';
 import { Burn, Shrapnel, FastGunner, BullsEye, PowerSurge, FrostVortex, UnstableBomber, Keyword, Bounce, FortressWarfare } from '../pipelines/keyword';
 import { DataMapper } from '../engine/data-mapper';
 import { ScalingEngine } from '../engine/scaling-engine';
-import { EffectRegistry } from '../engine/effect-registry';
+import { WEAPON_TRIGGER_REGISTRY } from './trigger-definitions';
+import { BaseEffect, IncreaseStatEffect } from '../models/effect';
 import { RawWeaponData } from '../types/data-sources';
+
+/** Weapon-specific permanent stat bonuses applied during stat aggregation. */
+const WEAPON_INTRINSIC_EFFECTS: Partial<Record<WeaponKey, BaseEffect[]>> = {
+    [WeaponKey.OctopusGrilledRings]: [
+        new IncreaseStatEffect(StatType.BurnDamageFactor, 75),
+        new IncreaseStatEffect(StatType.MaxBurnStacks, -3),
+        new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
+        new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20),
+    ],
+};
 
 export function getKeywordInstance(type: KeywordType): Keyword {
     switch (type) {
@@ -144,8 +155,8 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
 };
 
 /**
- * Optimized factory that uses DataMapper for normalization, ScalingEngine for 
- * tiered/star math, and EffectRegistry for behavior injection.
+ * Optimized factory that uses DataMapper for normalization, ScalingEngine for
+ * tiered/star math, and WEAPON_TRIGGER_REGISTRY for behavior injection (ADR-003).
  */
 export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1, calibration: number = 0, mod?: Mod): Weapon {
     const raw = RAW_WEAPONS[key];
@@ -170,27 +181,29 @@ export function createWeapon(key: WeaponKey, star: number = 1, level: number = 1
     wStats.magazineCapacity.value = data.baseStats.magazineCapacity;
     wStats.critRatePercent.value = data.baseStats.critRatePercent;
     wStats.critDamagePercent.value = data.baseStats.critDamagePercent;
-    wStats.weakspotDamagePercent.value = data.baseStats.weakspotDamagePercent || data.baseStats.weakspotDamagePercent; // DataMapper map raw weakspot_damage_percent to weakspotDamagePercent
+    wStats.weakspotDamagePercent.value = data.baseStats.weakspotDamagePercent || data.baseStats.weakspotDamagePercent;
 
-    // 3. Behavior Injection (Effect Registry)
-    const behavior = EffectRegistry.getWeaponBehavior(data.id);
-    const keyword = behavior.keywordOverride || getKeywordInstance(data.keywordType);
-    const intrinsicEffects = behavior.intrinsicEffects || [];
-    const triggeredEffects = behavior.triggeredEffects || [];
+    // 3. Behavior Injection (ADR-003 Trigger Registry)
+    const weaponEntry = WEAPON_TRIGGER_REGISTRY[key as WeaponKey];
+    const keyword = getKeywordInstance(data.keywordType);
+    const triggerDefinitions = weaponEntry?.triggers ?? [];
+    const overridesKeywordTriggers = weaponEntry?.overridesKeywordTriggers ?? false;
+    const intrinsicEffects = WEAPON_INTRINSIC_EFFECTS[key as WeaponKey] ?? [];
 
     const weapon = new Weapon(
-        data.id, 
-        data.name, 
-        data.rarity, 
-        star, 
-        level, 
-        calibration, 
+        data.id,
+        data.name,
+        data.rarity,
+        star,
+        level,
+        calibration,
         mod,
-        data.type, 
-        keyword, 
-        wStats, 
+        data.type,
+        keyword,
+        wStats,
         intrinsicEffects,
-        triggeredEffects
+        triggerDefinitions,
+        overridesKeywordTriggers
     );
 
     return weapon;

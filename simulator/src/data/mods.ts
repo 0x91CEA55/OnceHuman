@@ -2,8 +2,12 @@ import { StatType, FlagType, WeaponSlot, ArmorSlot, ModKey } from '../types/enum
 import { ModData, Mod } from '../models/equipment';
 import { AggregationContext } from '../types/common';
 import { Substat, SubstatTier } from '../models/substat';
-import { IncreaseStatEffect, SetFlagEffect, BuffEffect, ConditionalEffect } from '../models/effect';
-import { TriggeredEffect, OnHitTrigger, OnReloadTrigger } from '../models/trigger';
+import { IncreaseStatEffect, SetFlagEffect, ConditionalEffect } from '../models/effect';
+import {
+    WORK_OF_PROFICIENCY_TRIGGERS,
+    FIRST_MOVE_ADVANTAGE_TRIGGERS,
+    PRECISE_STRIKE_TRIGGERS,
+} from './trigger-definitions';
 
 /**
  * Momentum Up: Fire Rate +10% for first 50% of mag, Weapon DMG +30% for second half.
@@ -65,24 +69,7 @@ export const MOD_DATA: Record<ModKey, ModData> = {
         ArmorSlot.Helmet,
         'Reloading empty magazine: Reload Speed +10% and Elemental DMG +20% for 5s.',
         [],
-        [
-            // Simplified: Always triggers on reload for now
-            new TriggeredEffect(
-                new OnReloadTrigger(),
-                [
-                    new BuffEffect(
-                        'buff-proficiency',
-                        'Proficiency',
-                        5,
-                        1,
-                        [
-                            new IncreaseStatEffect(StatType.ReloadSpeedPercent, 10),
-                            new IncreaseStatEffect(StatType.ElementalDamagePercent, 20)
-                        ]
-                    )
-                ]
-            )
-        ]
+        WORK_OF_PROFICIENCY_TRIGGERS
     ),
     [ModKey.FirstMoveAdvantage]: new ModData(
         ModKey.FirstMoveAdvantage,
@@ -90,23 +77,7 @@ export const MOD_DATA: Record<ModKey, ModData> = {
         ArmorSlot.Helmet,
         'For 2s after reloading: Crit Rate +10% and Crit DMG +20%.',
         [],
-        [
-            new TriggeredEffect(
-                new OnReloadTrigger(),
-                [
-                    new BuffEffect(
-                        'buff-first-move',
-                        'First-Move',
-                        2,
-                        1,
-                        [
-                            new IncreaseStatEffect(StatType.CritRatePercent, 10),
-                            new IncreaseStatEffect(StatType.CritDamagePercent, 20)
-                        ]
-                    )
-                ]
-            )
-        ]
+        FIRST_MOVE_ADVANTAGE_TRIGGERS
     ),
     [ModKey.MagExpansion]: new ModData(
         ModKey.MagExpansion,
@@ -136,20 +107,7 @@ export const MOD_DATA: Record<ModKey, ModData> = {
         ArmorSlot.Helmet,
         'Hitting Weakspots grants +12.0% Weakspot DMG for 3s, up to 3 stacks',
         [],
-        [
-            new TriggeredEffect(
-                new OnHitTrigger(), 
-                [
-                    new BuffEffect(
-                        'buff-precise-strike',
-                        'Precise Strike',
-                        3,
-                        3,
-                        [new IncreaseStatEffect(StatType.WeakspotDamagePercent, 12)]
-                    )
-                ]
-            )
-        ]
+        PRECISE_STRIKE_TRIGGERS
     ),
     [ModKey.FlameResonance]: new ModData(
         ModKey.FlameResonance,
@@ -168,12 +126,12 @@ export const MOD_DATA: Record<ModKey, ModData> = {
         WeaponSlot.Main,
         'When Burn is removed, stacks only -50%',
         [],
-        [] 
+        []
     )
 };
 
 export function createModInstance(
-    modKey: ModKey, 
+    modKey: ModKey,
     substats: [Substat, Substat, Substat, Substat]
 ): Mod {
     const data = MOD_DATA[modKey];
