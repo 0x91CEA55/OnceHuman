@@ -16,7 +16,7 @@
 
 import { StatType, DamageTrait, WeaponKey, KeywordType } from '../types/enums';
 import { TriggerDefinition, TriggerType, TriggerConditionType, DynEffectType, EffectTargetType } from '../types/trigger-types';
-import { triggerCounterKey, cooldownKey, dotId, buffId } from '../types/keys';
+import { triggerCounterKey, cooldownKey } from '../types/keys';
 import {
     BURN_DOT, FROST_VORTEX_DOT,
     FAST_GUNNER_BUFF, BULLS_EYE_BUFF,

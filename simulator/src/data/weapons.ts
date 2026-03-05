@@ -10,10 +10,7 @@ import { RawWeaponData } from '../types/data-sources';
 /** Weapon-specific permanent stat bonuses applied during stat aggregation. */
 const WEAPON_INTRINSIC_EFFECTS: Partial<Record<WeaponKey, BaseEffect[]>> = {
     [WeaponKey.OctopusGrilledRings]: [
-        new IncreaseStatEffect(StatType.BurnDamageFactor, 75),
-        new IncreaseStatEffect(StatType.MaxBurnStacks, -3),
-        new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
-        new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20),
+        new IncreaseStatEffect(StatType.ElementalDamagePercent, 30),
     ],
 };
 
@@ -144,7 +141,7 @@ export const RAW_WEAPONS: Record<string, RawWeaponData> = {
             crit_damage_percent: 40,
         },
         mechanics: {
-            description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3.",
+            description: "High Burn chance. Fire ring at max stacks. Burn DMG +75%, Max Stacks -3. Shock Elemental DMG +30%.",
             effects: [{
                 ability: "burn",
                 type: ''

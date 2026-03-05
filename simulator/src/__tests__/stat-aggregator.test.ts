@@ -11,14 +11,13 @@ describe('StatAggregator Strategy Tests', () => {
     let stats: PlayerStats;
     let loadout: Loadout;
 
-    const dummyConditions: EncounterConditions = {
-        enemyType: EnemyType.Normal,
-        targetDistanceMeters: 10,
-        playerHpPercent: 100,
-        isTargetVulnerable: false,
-        weakspotHitRate: 0,
-        topology: EncounterTopology.SingleTarget
-    };
+    const dummyConditions = new EncounterConditions();
+    dummyConditions.enemyType = EnemyType.Normal;
+    dummyConditions.targetDistanceMeters = 10;
+    dummyConditions.playerHpPercent = 100;
+    dummyConditions.isTargetVulnerable = false;
+    dummyConditions.weakspotHitRate = 0.5;
+    dummyConditions.topology = EncounterTopology.SingleTarget;
 
     beforeEach(() => {
         stats = new PlayerStats();

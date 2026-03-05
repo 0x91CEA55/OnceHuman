@@ -20,6 +20,7 @@ export class PlayerStats {
         this.stats.set(StatType.CritRatePercent, new CritRateStat(0));
         this.stats.set(StatType.CritDamagePercent, new GenericStat(StatType.CritDamagePercent, 0));
         this.stats.set(StatType.WeakspotDamagePercent, new GenericStat(StatType.WeakspotDamagePercent, 0));
+        this.stats.set(StatType.WeakspotHitRatePercent, new GenericStat(StatType.WeakspotHitRatePercent, 0));
         this.stats.set(StatType.StatusDamagePercent, new GenericStat(StatType.StatusDamagePercent, 0));
         this.stats.set(StatType.ElementalDamagePercent, new GenericStat(StatType.ElementalDamagePercent, 0));
         this.stats.set(StatType.WeaponDamagePercent, new GenericStat(StatType.WeaponDamagePercent, 0));
@@ -60,6 +61,11 @@ export class PlayerStats {
 
         this.stats.set(StatType.MaxBurnStacks, new GenericStat(StatType.MaxBurnStacks, 5));
         this.stats.set(StatType.BurnDurationPercent, new GenericStat(StatType.BurnDurationPercent, 100));
+        this.stats.set(StatType.BurnFrequencyPercent, new GenericStat(StatType.BurnFrequencyPercent, 0));
+
+        this.stats.set(StatType.DPS, new GenericStat(StatType.DPS, 0));
+        this.stats.set(StatType.SanityPercent, new GenericStat(StatType.SanityPercent, 100));
+        this.stats.set(StatType.ShieldPercent, new GenericStat(StatType.ShieldPercent, 0));
     }
 
     reset(): void {
@@ -79,6 +85,14 @@ export class PlayerStats {
         return snap;
     }
 
+    snapshotMap(): Map<StatType, number> {
+        const snap = new Map<StatType, number>();
+        this.stats.forEach((stat, type) => {
+            snap.set(type, stat.value);
+        });
+        return snap;
+    }
+
     applySnapshot(snap: Record<StatType, number>): void {
         this.stats.forEach((stat, type) => {
             if (snap[type] !== undefined) {
@@ -91,6 +105,15 @@ export class PlayerStats {
         const stat = this.stats.get(type);
         if (stat) {
             stat.add(value);
+        } else {
+            this.stats.set(type, new GenericStat(type, value));
+        }
+    }
+
+    set(type: StatType, value: number): void {
+        const stat = this.stats.get(type);
+        if (stat) {
+            stat.value = value;
         } else {
             this.stats.set(type, new GenericStat(type, value));
         }

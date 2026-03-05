@@ -22,6 +22,10 @@ export class StatAggregator {
         player.stats.reset();
         player.resetFlags();
 
+        // Feed context values into player stats for effect evaluation
+        player.stats.set(StatType.SanityPercent, conditions.playerSanityPercent);
+        player.stats.set(StatType.ShieldPercent, conditions.playerShieldPercent);
+
         // Only clear active effects list if we are doing a full run (not static baseline)
         if (!staticOnly) {
             player.activeEffects = [];

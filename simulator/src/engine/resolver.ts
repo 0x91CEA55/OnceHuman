@@ -17,8 +17,11 @@ import {
     BucketDef,
     BucketId,
     ConditionType,
+    RollDefinition,
+    ContextFlag,
 } from '../types/resolution';
 import { StatType, DamageTrait, KeywordType, EnemyType } from '../types/enums';
+import { RngService } from './rng';
 
 /**
  * Evaluates a ContributionCondition against the current ResolutionContext.
@@ -34,18 +37,29 @@ export function evaluate(condition: ContributionCondition, ctx: ResolutionContex
             return ctx.elements.has(condition.element);
         case ConditionType.TargetTypeMatches:
             return ctx.targetType === condition.targetType;
-        case ConditionType.WasCrit:
-            return ctx.wasCrit;
-        case ConditionType.WasWeakspot:
-            return ctx.wasWeakspot;
         case ConditionType.KeywordCritUnlocked:
             return ctx.unlockedKeywordCrits.has(condition.keyword);
+        case ConditionType.FlagActive:
+            return ctx.flags.get(condition.flag) ?? false;
+        case ConditionType.Comparison: {
+            const statVal = ctx.statValues.get(condition.stat) ?? 0;
+            switch (condition.operator) {
+                case '>': return statVal > condition.value;
+                case '<': return statVal < condition.value;
+                case '>=': return statVal >= condition.value;
+                case '<=': return statVal <= condition.value;
+                case '==': return statVal === condition.value;
+                default: return false;
+            }
+        }
         case ConditionType.And:
             return condition.conditions.every(c => evaluate(c, ctx));
         case ConditionType.Or:
             return condition.conditions.some(c => evaluate(c, ctx));
         case ConditionType.Not:
             return !evaluate(condition.condition, ctx);
+        default:
+            return false;
     }
 }
 
@@ -82,6 +96,28 @@ export function resolve(
 }
 
 /**
+ * Executes a set of probabilistic rolls (e.g., Crit, Weakspot) and updates the context's flags.
+ * This makes rolls data-driven and deterministic via the injected RNG.
+ */
+export function evaluateRolls(
+    rolls: readonly RollDefinition[],
+    ctx: ResolutionContext,
+    rng: RngService,
+): void {
+    for (const roll of rolls) {
+        let sum = 0;
+        for (const contributor of roll.rateContributors) {
+            if (evaluate(contributor.condition, ctx)) {
+                sum += ctx.statValues.get(contributor.stat) ?? 0;
+            }
+        }
+        const rate = Math.min(sum / 100, 1);
+        const result = rng.next() < rate;
+        ctx.flags.set(roll.resultFlag, result);
+    }
+}
+
+/**
  * Aggregates crit rate from a set of contributors.
  * Uses the same evaluate() function — same pure-data pattern as bucket resolution.
  * Returns probability in [0, 1].
@@ -106,9 +142,8 @@ export function resolveCritRate(
 export function buildResolutionContext(
     traits: ReadonlySet<DamageTrait>,
     targetType: EnemyType,
-    wasCrit: boolean,
-    wasWeakspot: boolean,
     statValues: ReadonlyMap<StatType, number>,
+    initialFlags: Map<ContextFlag, boolean> = new Map(),
     unlockedKeywordCrits: ReadonlySet<KeywordType> = new Set(),
 ): ResolutionContext {
     // Derive active keywords from trait set
@@ -133,12 +168,23 @@ export function buildResolutionContext(
         keywords,
         elements: new Set(), // Per-element stat granularity: open question (ADR-002 §Open Questions)
         targetType,
-        wasCrit,
-        wasWeakspot,
+        flags: initialFlags,
         unlockedKeywordCrits,
         statValues,
     };
 }
+
+export const KEYWORD_TRAIT_MAP: Record<KeywordType, DamageTrait[]> = {
+    [KeywordType.Burn]: [DamageTrait.Burn, DamageTrait.Status, DamageTrait.Elemental],
+    [KeywordType.FrostVortex]: [DamageTrait.FrostVortex, DamageTrait.Status, DamageTrait.Elemental],
+    [KeywordType.PowerSurge]: [DamageTrait.PowerSurge, DamageTrait.Elemental],
+    [KeywordType.Shrapnel]: [DamageTrait.Shrapnel, DamageTrait.Weapon],
+    [KeywordType.UnstableBomber]: [DamageTrait.UnstableBomber, DamageTrait.Status, DamageTrait.Elemental, DamageTrait.Explosive],
+    [KeywordType.Bounce]: [DamageTrait.Bounce, DamageTrait.Weapon],
+    [KeywordType.FastGunner]: [DamageTrait.FastGunner, DamageTrait.Weapon],
+    [KeywordType.BullsEye]: [DamageTrait.BullsEye, DamageTrait.Weapon],
+    [KeywordType.FortressWarfare]: [DamageTrait.Weapon],
+};
 
 /** Extracts a ReadonlyMap<StatType, number> from a PlayerStats snapshot object. */
 export function statValuesFromSnapshot(snapshot: Record<string, number>): ReadonlyMap<StatType, number> {

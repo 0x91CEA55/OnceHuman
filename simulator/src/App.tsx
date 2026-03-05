@@ -48,14 +48,7 @@ function App() {
   const [activeSlot, setActiveSlot] = useState<GearSlot>(WeaponSlot.Main);
   const [simLogs, setSimLogs] = useState<SimulationLogEntry[]>([]);
 
-  const [conditions, setConditions] = useState<EncounterConditions>({
-    enemyType: 'Normal' as any,
-    targetDistanceMeters: 10,
-    playerHpPercent: 100,
-    isTargetVulnerable: false,
-    weakspotHitRate: 0.5,
-    topology: 'single_target' as any
-  });
+  const [conditions, setConditions] = useState<EncounterConditions>(new EncounterConditions());
 
   const loadout = useMemo(() => {
     const l = new Loadout();

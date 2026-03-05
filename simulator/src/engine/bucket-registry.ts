@@ -12,12 +12,48 @@
  * See: simulator/docs/designs/ADR-002-universal-bucket-topology.md
  */
 
-import { BucketDef, BucketId, ContributorDef, ConditionType } from '../types/resolution';
-import { StatType, KeywordType, EnemyType } from '../types/enums';
+import { BucketDef, BucketId, ContributorDef, ConditionType, RollDefinition, ContextFlag } from '../types/resolution';
+import { StatType, KeywordType, EnemyType, FlagType } from '../types/enums';
 
 const ALWAYS = { type: ConditionType.Always } as const;
 const kw = (keyword: KeywordType) => ({ type: ConditionType.KeywordMatches, keyword } as const);
 const target = (targetType: EnemyType) => ({ type: ConditionType.TargetTypeMatches, targetType } as const);
+const flag = (flag: ContextFlag) => ({ type: ConditionType.FlagActive, flag } as const);
+
+/**
+ * Registry of all probabilistic "Rolls" in the engine.
+ * Decouples the decision (did it crit?) from the effect (+100% DMG).
+ */
+export const ROLL_REGISTRY: readonly RollDefinition[] = [
+    {
+        id: 'crit',
+        rateContributors: [
+            { stat: StatType.CritRatePercent, condition: ALWAYS },
+        ],
+        resultFlag: 'wasCrit'
+    },
+    {
+        id: 'weakspot',
+        rateContributors: [
+            { stat: StatType.WeakspotHitRatePercent, condition: ALWAYS },
+        ],
+        resultFlag: 'wasWeakspot'
+    },
+    {
+        id: 'burn_crit',
+        rateContributors: [
+            { 
+                stat: StatType.CritRatePercent, 
+                condition: flag(FlagType.KeywordCanCrit) 
+            },
+            { 
+                stat: StatType.KeywordCritRatePercent, 
+                condition: flag(FlagType.KeywordCanCrit) 
+            }
+        ],
+        resultFlag: 'wasBurnCrit'
+    }
+];
 
 export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
 
@@ -32,7 +68,6 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
         id: BucketId.ElementalDamage,
         contributors: [
             { stat: StatType.ElementalDamagePercent, condition: ALWAYS },
-            // Per-element stats (Blaze DMG%, etc.) to be added when codified (ADR-002 §Open Questions)
         ],
     },
     {
@@ -50,7 +85,7 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
     {
         id: BucketId.PsiIncrease,
         contributors: [
-            // PsiIntensityIncreasePercent to be added when per-stack dynamic modifiers are implemented
+            // Dynamic contributors added during aggregation
         ],
     },
 
@@ -59,6 +94,13 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
         id: BucketId.BurnFactor,
         contributors: [
             { stat: StatType.BurnDamageFactor, condition: kw(KeywordType.Burn) },
+            { 
+                stat: StatType.KeywordCritDamagePercent, 
+                condition: { 
+                    type: ConditionType.And, 
+                    conditions: [kw(KeywordType.Burn), flag('wasBurnCrit')] 
+                } 
+            },
         ],
     },
     {
@@ -134,10 +176,8 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
     {
         id: BucketId.HitAmplifier,
         contributors: [
-            { stat: StatType.CritDamagePercent,    condition: { type: ConditionType.WasCrit } },
-            { stat: StatType.WeakspotDamagePercent, condition: { type: ConditionType.WasWeakspot } },
-            // Keyword-specific crit DMG (e.g. Burn Crit DMG from Gilded Gloves) added here
-            // when per-keyword stats are codified (ADR-002 §Open Questions #4)
+            { stat: StatType.CritDamagePercent,    condition: flag('wasCrit') },
+            { stat: StatType.WeakspotDamagePercent, condition: flag('wasWeakspot') },
         ],
     },
 
@@ -171,7 +211,7 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
     {
         id: BucketId.FinalDamage,
         contributors: [
-            // "Ultimate DMG Bonus" / global Final DMG — pending Bible clarification (ADR-002 §Open Questions #1)
+            // "Ultimate DMG Bonus"
         ],
     },
 ];
@@ -179,6 +219,4 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
 /** Crit rate contributors — same pure-data pattern as bucket contributors. */
 export const CRIT_RATE_CONTRIBUTORS: readonly ContributorDef[] = [
     { stat: StatType.CritRatePercent, condition: ALWAYS },
-    // Keyword-specific crit rate (e.g. Burn Crit Rate from Gilded Gloves) will be added here
-    // when per-keyword crit is modeled (ADR-002 §Open Questions #4)
 ];

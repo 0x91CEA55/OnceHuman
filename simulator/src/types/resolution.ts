@@ -5,7 +5,20 @@
  * See: simulator/docs/designs/ADR-002-universal-bucket-topology.md
  */
 
-import { StatType, DamageTrait, KeywordType, EnemyType } from './enums';
+import { StatType, DamageTrait, KeywordType, EnemyType, FlagType } from './enums';
+
+/**
+ * ADR-005: Context Flags
+ * Union of all valid flags used during damage resolution.
+ * Combines permanent gear flags with transient session flags (crits, weakspots).
+ */
+export type ContextFlag = 
+    | FlagType 
+    | 'wasCrit' 
+    | 'wasWeakspot' 
+    | 'wasBurnCrit' 
+    | 'isShielded' 
+    | 'isFirstHalfOfMag';
 
 /**
  * Each multiplicative bucket in the universal topology.
@@ -44,9 +57,11 @@ export enum ConditionType {
     KeywordMatches      = 'keyword_matches',
     ElementMatches      = 'element_matches',
     TargetTypeMatches   = 'target_type_matches',
-    WasCrit             = 'was_crit',
-    WasWeakspot         = 'was_weakspot',
     KeywordCritUnlocked = 'keyword_crit_unlocked',
+    /** Generic flag check (e.g., 'wasCrit', 'wasWeakspot', 'isElite'). */
+    FlagActive          = 'flag_active',
+    /** Robust comparison between a stat and a literal value. */
+    Comparison          = 'comparison',
     And                 = 'and',
     Or                  = 'or',
     Not                 = 'not',
@@ -60,6 +75,9 @@ export enum ElementType {
     Blast = 'blast',
 }
 
+/** Comparison operators for the Comparison condition type. */
+export type ComparisonOperator = '>' | '<' | '>=' | '<=' | '==';
+
 /**
  * Condition tree for bucket contributions — fully serializable, no functions.
  * Evaluation is a separate pure function.
@@ -68,13 +86,13 @@ export type ContributionCondition =
     | { readonly type: ConditionType.Always }
     | { readonly type: ConditionType.KeywordMatches;      readonly keyword: KeywordType }
     | { readonly type: ConditionType.ElementMatches;      readonly element: ElementType }
-    | { readonly type: ConditionType.TargetTypeMatches;   readonly targetType: EnemyType }
-    | { readonly type: ConditionType.WasCrit }
-    | { readonly type: ConditionType.WasWeakspot }
-    | { readonly type: ConditionType.KeywordCritUnlocked; readonly keyword: KeywordType }
-    | { readonly type: ConditionType.And;                 readonly conditions: readonly ContributionCondition[] }
-    | { readonly type: ConditionType.Or;                  readonly conditions: readonly ContributionCondition[] }
-    | { readonly type: ConditionType.Not;                 readonly condition: ContributionCondition };
+    | { readonly type: ConditionType.TargetTypeMatches;    readonly targetType: EnemyType }
+    | { readonly type: ConditionType.KeywordCritUnlocked;  readonly keyword: KeywordType }
+    | { readonly type: ConditionType.FlagActive;           readonly flag: ContextFlag }
+    | { readonly type: ConditionType.Comparison;           readonly stat: StatType; readonly operator: ComparisonOperator; readonly value: number }
+    | { readonly type: ConditionType.And;                  readonly conditions: readonly ContributionCondition[] }
+    | { readonly type: ConditionType.Or;                   readonly conditions: readonly ContributionCondition[] }
+    | { readonly type: ConditionType.Not;                  readonly condition: ContributionCondition };
 
 /** A single stat contributor to a bucket, gated by a condition. */
 export interface ContributorDef {
@@ -92,6 +110,15 @@ export interface BucketDef {
 }
 
 /**
+ * Defines a probabilistic "Roll" (e.g., Crit, Weakspot) that sets a flag in ResolutionContext.
+ */
+export interface RollDefinition {
+    readonly id: string;
+    readonly rateContributors: readonly ContributorDef[];
+    readonly resultFlag: ContextFlag;
+}
+
+/**
  * Snapshot of the current damage event's state for condition evaluation.
  * Pure data — no methods, no mutation during resolution.
  */
@@ -100,8 +127,8 @@ export interface ResolutionContext {
     readonly keywords: ReadonlySet<KeywordType>;
     readonly elements: ReadonlySet<ElementType>;
     readonly targetType: EnemyType;
-    readonly wasCrit: boolean;
-    readonly wasWeakspot: boolean;
+    /** Strictly-typed flags map. */
+    readonly flags: Map<ContextFlag, boolean>;
     readonly unlockedKeywordCrits: ReadonlySet<KeywordType>;
     /** Pre-aggregated stat pool from PlayerStats. */
     readonly statValues: ReadonlyMap<StatType, number>;

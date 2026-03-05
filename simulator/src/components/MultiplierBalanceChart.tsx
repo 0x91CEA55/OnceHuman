@@ -2,21 +2,29 @@ import React from 'react';
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
 } from 'recharts';
+import { BucketId } from '../types/resolution';
 
 interface MultiplierBalanceChartProps {
-    multipliers: Record<string, number>;
+    /** Type-safe bucket multipliers from the simulation log. */
+    multipliers: ReadonlyMap<BucketId, number> | Record<string, number>;
 }
 
 export const MultiplierBalanceChart: React.FC<MultiplierBalanceChartProps> = ({ multipliers }) => {
-    // Ensure we handle both combined and separate attack/weapon buckets if they exist
-    const attackVal = multipliers.attack || 1.0;
     
+    // Helper to get value from either Map or Record (for transition/flexibility)
+    const getVal = (id: BucketId): number => {
+        if (multipliers instanceof Map) {
+            return multipliers.get(id) || 1.0;
+        }
+        return (multipliers as any)[id] || 1.0;
+    };
+
     const data = [
-        { subject: 'Status', A: multipliers.status || 1.0 },
-        { subject: 'Elemental', A: multipliers.elemental || 1.0 },
-        { subject: 'Base/Atk', A: attackVal },
-        { subject: 'Keyword', A: multipliers.keyword || 1.0 },
-        { subject: 'Crit', A: multipliers.crit || 1.0 },
+        { subject: 'Status', A: getVal(BucketId.StatusDamage) },
+        { subject: 'Elemental', A: getVal(BucketId.ElementalDamage) },
+        { subject: 'Attack', A: getVal(BucketId.AttackPercent) },
+        { subject: 'Weapon', A: getVal(BucketId.WeaponDamage) },
+        { subject: 'HitAmp', A: getVal(BucketId.HitAmplifier) },
     ];
 
     return (
