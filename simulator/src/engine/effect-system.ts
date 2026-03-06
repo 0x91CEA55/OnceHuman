@@ -16,7 +16,7 @@
 import { EffectDef, DynEffectType, EffectTarget, EffectTargetType } from '../types/trigger-types';
 import { DoTInstance, BuffInstance } from '../types/status-types';
 import { DamageTrait, StatType, EnemyType } from '../types/enums';
-import { CooldownKey } from '../types/keys';
+import { CooldownKey, dotId, buffId } from '../types/keys';
 import { DoTDefinition, BuffDefinition } from '../types/status-types';
 import { resolve, buildResolutionContext } from './resolver';
 import { UNIVERSAL_BUCKETS } from './bucket-registry';
@@ -174,7 +174,7 @@ function applyDoTInstance(
         ctx.logEvent('DoT Stack', `${definitionId} (${existing.currentStacks}×)`);
     } else {
         const instance: DoTInstance = {
-            definitionId: definitionId as any,
+            definitionId: dotId(definitionId),
             currentStacks: 1,
             remainingDurationSeconds: durationSeconds,
             nextTickTimeSeconds: currentTime + tickIntervalSeconds,
@@ -202,7 +202,7 @@ function applyBuffInstance(
         ctx.logEvent('Buff Stack', `${definitionId} (${existing.currentStacks}×)`);
     } else {
         activeBuffs.push({
-            definitionId: definitionId as any,
+            definitionId: buffId(definitionId),
             currentStacks: 1,
             remainingDurationSeconds: durationSeconds,
             maxStacks,

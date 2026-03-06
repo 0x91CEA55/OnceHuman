@@ -22,6 +22,10 @@ import {
 } from '../types/resolution';
 import { StatType, DamageTrait, KeywordType, EnemyType } from '../types/enums';
 import { RngService } from './rng';
+import { UNIVERSAL_BUCKETS } from './bucket-registry';
+import { Player } from '../models/player';
+import { telemetry } from './audit-log';
+import { TraceNode, TraceContributor } from '../types/telemetry';
 
 /**
  * Evaluates a ContributionCondition against the current ResolutionContext.
@@ -31,6 +35,8 @@ export function evaluate(condition: ContributionCondition, ctx: ResolutionContex
     switch (condition.type) {
         case ConditionType.Always:
             return true;
+        case ConditionType.TraitMatches:
+            return ctx.traits.has(condition.trait);
         case ConditionType.KeywordMatches:
             return ctx.keywords.has(condition.keyword);
         case ConditionType.ElementMatches:
@@ -70,29 +76,75 @@ export function evaluate(condition: ContributionCondition, ctx: ResolutionContex
  * @param baseDamage  Absolute base damage before any buckets apply
  * @param buckets     Universal bucket registry (always UNIVERSAL_BUCKETS)
  * @param ctx         Resolution context for this damage event
- * @returns           Final damage value + per-bucket audit trail
+ * @param recordToTelemetry  If true, records the trace to the global telemetry manager.
+ * @returns           Final damage value + per-bucket audit trail + calculation trace
  */
 export function resolve(
     baseDamage: number,
     buckets: readonly BucketDef[],
     ctx: ResolutionContext,
-): { finalDamage: number; audit: Map<BucketId, number> } {
+    recordToTelemetry: boolean = false
+): { finalDamage: number; audit: Map<BucketId, number>; trace: TraceNode } {
     let result = baseDamage;
     const audit = new Map<BucketId, number>();
+    const traceContributors: TraceContributor[] = [];
 
     for (const bucket of buckets) {
         let sum = 0;
+        const bucketContributors: TraceContributor[] = [];
         for (const contributor of bucket.contributors) {
             if (evaluate(contributor.condition, ctx)) {
-                sum += ctx.statValues.get(contributor.stat) ?? 0;
+                const val = ctx.statValues.get(contributor.stat) ?? 0;
+                if (val !== 0) {
+                    sum += val;
+                    bucketContributors.push({
+                        label: contributor.stat,
+                        value: val,
+                        type: 'stat',
+                        isPercentage: true
+                    });
+                }
             }
         }
         const multiplier = 1 + sum / 100;
         audit.set(bucket.id, multiplier);
         result *= multiplier;
+
+        if (multiplier !== 1) {
+            traceContributors.push({
+                label: `Bucket: ${bucket.id}`,
+                value: multiplier,
+                type: 'multiplier',
+                childTrace: {
+                    id: `${bucket.id}:${Date.now()}`,
+                    label: `Multiplier Bucket: ${bucket.id}`,
+                    finalValue: multiplier,
+                    operation: 'sum',
+                    contributors: bucketContributors,
+                    timestamp: Date.now()
+                }
+            });
+        }
     }
 
-    return { finalDamage: result, audit };
+    const finalTrace: TraceNode = {
+        id: `damage_resolution:${Date.now()}`,
+        label: 'Damage Resolution',
+        baseValue: baseDamage,
+        finalValue: result,
+        operation: 'product',
+        contributors: [
+            { label: 'Base Damage', value: baseDamage, type: 'constant' },
+            ...traceContributors
+        ],
+        timestamp: Date.now()
+    };
+
+    if (recordToTelemetry) {
+        telemetry.record(finalTrace);
+    }
+
+    return { finalDamage: result, audit, trace: finalTrace };
 }
 
 /**
@@ -115,6 +167,102 @@ export function evaluateRolls(
         const result = rng.next() < rate;
         ctx.flags.set(roll.resultFlag, result);
     }
+}
+
+interface ScenarioFlags {
+    wasCrit: boolean;
+    wasWeakspot: boolean;
+    wasBurnCrit: boolean;
+    [key: string]: boolean;
+}
+
+/**
+ * ADR-012: Unified Scenario Scan Result.
+ */
+export interface ScenarioScanResult {
+    noCritNoWs: number;
+    critNoWs: number;
+    noCritWs: number;
+    critWs: number;
+    expected: number;
+    masterTrace: TraceNode;
+}
+
+/**
+ * Executes a static damage scan across common combat scenarios.
+ * ADR-010: Used for UI previews without running a full timeseries simulation.
+ * ADR-013: respects canCrit and canWeakspot flags for keyword-specific restrictions.
+ */
+export function resolveScenarioScan(
+    baseDamage: number,
+    player: Player,
+    targetType: EnemyType,
+    traits: ReadonlySet<DamageTrait>,
+    unlockedKeywordCrits: ReadonlySet<KeywordType> = new Set(),
+    logLabel?: string,
+    canCrit: boolean = true,
+    canWeakspot: boolean = true
+): ScenarioScanResult {
+    const statValues = statValuesFromSnapshot(player.stats.snapshot());
+    
+    const runScenario = (flags: ScenarioFlags) => {
+        const initialFlags = new Map<ContextFlag, boolean>();
+        Object.entries(flags).forEach(([k, v]) => {
+            // Apply restrictions: if scenario wants a crit but keyword can't, force false.
+            let finalVal = v;
+            if (k === 'wasCrit' && !canCrit) finalVal = false;
+            if (k === 'wasWeakspot' && !canWeakspot) finalVal = false;
+            if (k === 'wasBurnCrit' && !canCrit) finalVal = false;
+            
+            initialFlags.set(k as ContextFlag, finalVal);
+        });
+        
+        // Merge player permanent flags
+        player.flags.forEach((v, k) => { if (!initialFlags.has(k as ContextFlag)) initialFlags.set(k as ContextFlag, v); });
+
+        const ctx = buildResolutionContext(traits, targetType, statValues, initialFlags, unlockedKeywordCrits);
+        return resolve(baseDamage, UNIVERSAL_BUCKETS, ctx, false);
+    };
+
+    const resNormal = runScenario({ wasCrit: false, wasWeakspot: false, wasBurnCrit: false });
+    const resCrit   = runScenario({ wasCrit: true,  wasWeakspot: false, wasBurnCrit: true });
+    const resWs     = runScenario({ wasCrit: false, wasWeakspot: true,  wasBurnCrit: false });
+    const resBoth   = runScenario({ wasCrit: true,  wasWeakspot: true,  wasBurnCrit: true });
+
+    // Expected Value Calculation
+    const critRate = canCrit ? (player.stats.get(StatType.CritRatePercent)?.value ?? 0) / 100 : 0;
+    const wsRate   = canWeakspot ? (player.stats.get(StatType.WeakspotHitRatePercent)?.value ?? 0) / 100 : 0;
+
+    const expected = 
+        resNormal.finalDamage * (1 - critRate) * (1 - wsRate) +
+        resCrit.finalDamage   * critRate       * (1 - wsRate) +
+        resWs.finalDamage     * (1 - critRate) * wsRate +
+        resBoth.finalDamage   * critRate       * wsRate;
+
+    const masterTrace: TraceNode = {
+        id: `scenario_scan:${Date.now()}`,
+        label: logLabel || 'Scenario Scan',
+        finalValue: expected,
+        operation: 'sum',
+        contributors: [
+            { label: 'Normal Hit',   value: resNormal.finalDamage, type: 'stat', childTrace: resNormal.trace },
+            { label: 'Critical Hit', value: resCrit.finalDamage,   type: 'stat', childTrace: resCrit.trace },
+            { label: 'Weakspot Hit', value: resWs.finalDamage,     type: 'stat', childTrace: resWs.trace },
+            { label: 'Crit + WS',    value: resBoth.finalDamage,   type: 'stat', childTrace: resBoth.trace },
+            { label: 'Crit Probability', value: critRate, type: 'constant', isPercentage: true },
+            { label: 'WS Probability',   value: wsRate,   type: 'constant', isPercentage: true }
+        ],
+        timestamp: Date.now()
+    };
+
+    return { 
+        noCritNoWs: resNormal.finalDamage, 
+        critNoWs: resCrit.finalDamage, 
+        noCritWs: resWs.finalDamage, 
+        critWs: resBoth.finalDamage, 
+        expected,
+        masterTrace 
+    };
 }
 
 /**

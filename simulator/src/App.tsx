@@ -1,37 +1,39 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { CalculationConsole } from './components/CalculationConsole'
 import { BuildBreakdown } from './components/BuildBreakdown'
 import { DamageDashboard } from './components/DamageDashboard'
 import { EncounterConditionsPanel } from './components/EncounterConditionsPanel'
-import { createWeapon, RAW_WEAPONS } from './data/weapons'
+import { createWeapon } from './data/weapons'
 import { createArmor, ARMOR } from './data/armor'
 import { createModInstance, DEFAULT_SUBSTATS, MODS } from './data/mods'
 import { Player, PlayerStats } from './models/player'
 import { Loadout } from './models/equipment'
 import { StatAggregator } from './engine/stat-aggregator'
-import { auditLog } from './engine/audit-log'
+import { telemetry, useTelemetry } from './engine/audit-log'
 import { StatType, ArmorSlot, WeaponSlot, WeaponKey, ArmorKey, ModKey, GearSlot, CalibrationStyle, AmmunitionType } from './types/enums'
 import { EncounterConditions } from './types/common'
 import { Substat } from './models/substat'
 import { BaseEffect } from './models/effect'
-import { TelemetryTrack, SimulationLogEntry } from './engine/damage-engine'
+import { SimulationLogEntry } from './engine/damage-engine'
+import { ACTIVE_REGISTRY } from './data/generated/registry'
 
 // Diegetic Components
-import { SlotDock } from './components/SlotDock'
+import { GearHub } from './components/GearHub'
 import { TechnicalSchematic } from './components/TechnicalSchematic'
 import { DynamicStatDisplay } from './components/DynamicStatDisplay'
+import { StaticDamagePreview } from './components/StaticDamagePreview'
 import { TerminalFooter } from './components/TerminalFooter'
 import { DiegeticFrame } from './components/DiegeticFrame'
 
 // shadcn/ui components
 import { CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Terminal, Info } from 'lucide-react'
 
 function App() {
+  const telemetryEntries = useTelemetry();
   const [selectedItemIds, setSelectedItemIds] = useState<Record<string, string>>({});
   const [selectedModIds, setSelectedModIds] = useState<Record<string, string>>({});
   const [selectedSubstats, setSelectedSubstats] = useState<Record<string, [Substat, Substat, Substat, Substat]>>({});
@@ -40,6 +42,7 @@ function App() {
   const [selectedAmmunition, setSelectedAmmunition] = useState<AmmunitionType>(AmmunitionType.TungstenAP);
 
   // Calibration State (Weapon only for now)
+  const [calibrationLevel, setCalibrationLevel] = useState(0); // Level 0-10
   const [calibrationStyle, setCalibrationStyle] = useState<CalibrationStyle>(CalibrationStyle.None);
   const [weaponDamageBonus, setWeaponDamageBonus] = useState(0);
   const [secondaryStatType, setSecondaryStatType] = useState<StatType>(StatType.CritDamagePercent);
@@ -53,13 +56,14 @@ function App() {
   const loadout = useMemo(() => {
     const l = new Loadout();
     const wId = selectedItemIds[WeaponSlot.Main] as WeaponKey;
-    if (wId && RAW_WEAPONS[wId]) {
+    if (wId && ACTIVE_REGISTRY[wId]) {
       const modId = selectedModIds[WeaponSlot.Main] as ModKey;
       const substats = selectedSubstats[WeaponSlot.Main] || DEFAULT_SUBSTATS;
       const star = starLevels[WeaponSlot.Main] || 1;
       const tier = tierLevels[WeaponSlot.Main] || 5;
       const mod = (modId && MODS[modId]) ? createModInstance(modId, substats) : undefined;
-      const weapon = createWeapon(wId, star, tier, 10, mod);
+      
+      const weapon = createWeapon(wId, star, tier, calibrationLevel, mod);
 
       // Apply Calibration Matrix
       weapon.calibrationMatrix.style = calibrationStyle;
@@ -78,7 +82,7 @@ function App() {
         const star = starLevels[slot] || 1;
         const tier = tierLevels[slot] || 5;
         const mod = (modId && MODS[modId]) ? createModInstance(modId, substats) : undefined;
-        const armor = createArmor(itemId, star, tier, 10, mod);
+        const armor = createArmor(itemId, star, tier, 0, mod);
         if (slot === ArmorSlot.Helmet) l.helmet = armor;
         else if (slot === ArmorSlot.Mask) l.mask = armor;
         else if (slot === ArmorSlot.Top) l.top = armor;
@@ -88,7 +92,31 @@ function App() {
       }
     }
     return l;
-  }, [selectedItemIds, selectedModIds, selectedSubstats, starLevels, tierLevels, calibrationStyle, weaponDamageBonus, secondaryStatType, secondaryStatValue]);
+  }, [selectedItemIds, selectedModIds, selectedSubstats, starLevels, tierLevels, calibrationLevel, calibrationStyle, weaponDamageBonus, secondaryStatType, secondaryStatValue]);
+
+  const loadoutNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    if (loadout.weapon) names[WeaponSlot.Main] = loadout.weapon.name;
+    if (loadout.helmet) names[ArmorSlot.Helmet] = loadout.helmet.name;
+    if (loadout.mask) names[ArmorSlot.Mask] = loadout.mask.name;
+    if (loadout.top) names[ArmorSlot.Top] = loadout.top.name;
+    if (loadout.gloves) names[ArmorSlot.Gloves] = loadout.gloves.name;
+    if (loadout.pants) names[ArmorSlot.Pants] = loadout.pants.name;
+    if (loadout.boots) names[ArmorSlot.Boots] = loadout.boots.name;
+    return names;
+  }, [loadout]);
+
+  const loadoutRarities = useMemo(() => {
+    const rarities: Record<string, any> = {};
+    if (loadout.weapon) rarities[WeaponSlot.Main] = loadout.weapon.rarity;
+    if (loadout.helmet) rarities[ArmorSlot.Helmet] = loadout.helmet.rarity;
+    if (loadout.mask) rarities[ArmorSlot.Mask] = loadout.mask.rarity;
+    if (loadout.top) rarities[ArmorSlot.Top] = loadout.top.rarity;
+    if (loadout.gloves) rarities[ArmorSlot.Gloves] = loadout.gloves.rarity;
+    if (loadout.pants) rarities[ArmorSlot.Pants] = loadout.pants.rarity;
+    if (loadout.boots) rarities[ArmorSlot.Boots] = loadout.boots.rarity;
+    return rarities;
+  }, [loadout]);
 
   const handleItemSelect = (slot: string, id: string) => setSelectedItemIds(prev => ({ ...prev, [slot]: id }));
   const handleModSelect = (slot: string, id: string) => {
@@ -100,7 +128,6 @@ function App() {
   const [scrubbedStats, setScrubbedStats] = useState<Record<StatType, number> | null>(null);
   const [scrubbedBuffs, setScrubbedBuffs] = useState<{ name: string, stacks: number }[]>([]);
   const [scrubbedEffects, setScrubbedEffects] = useState<BaseEffect[] | null>(null);
-  const [telemetry, setTelemetry] = useState<TelemetryTrack | undefined>(undefined);
   const [scrubbedIndex, setScrubbedIndex] = useState(0);
 
   const handleScrub = useCallback((stats: Record<StatType, number> | null, buffs: { name: string, stacks: number }[], effects?: BaseEffect[], index?: number) => {
@@ -114,18 +141,22 @@ function App() {
     const p = new Player(loadout, new PlayerStats(), 100);
     p.selectedAmmunition = selectedAmmunition;
 
+    telemetry.clear();
     StatAggregator.aggregate(p, conditions, 1.0, true, true);
     const baseSnapshot = p.stats.snapshot();
-    StatAggregator.aggregate(p, conditions, 1.0, true, false);
+    StatAggregator.aggregate(p, conditions, 1.0, false, false);
     return { player: p, baseStatsSnapshot: baseSnapshot };
   }, [loadout, conditions, selectedAmmunition]);
 
   const currentStats = scrubbedStats || player.stats.snapshot();
-  const slotStatus = useMemo(() => {
-    const status: Record<string, boolean> = {};
-    Object.keys(selectedItemIds).forEach(slot => { if (selectedItemIds[slot]) status[slot] = true; });
-    return status;
-  }, [selectedItemIds]);
+
+  // Initial weapon selection
+  useEffect(() => {
+    const wId = WeaponKey.OctopusGrilledRings;
+    if (wId && ACTIVE_REGISTRY[wId]) {
+      setSelectedItemIds(prev => ({ ...prev, [WeaponSlot.Main]: wId }));
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground pb-12 overflow-x-hidden">
@@ -140,54 +171,66 @@ function App() {
               <p className="text-[9px] text-muted-foreground uppercase tracking-[0.3em] -mt-1 font-bold">Reactive Combat Theorycrafting Engine</p>
             </div>
           </div>
-          <Badge variant="outline" className="border-primary/20 text-primary uppercase tracking-tighter bg-primary/5 px-3">v0.4.0-diegetic [TRI-COL]</Badge>
+          <Badge variant="outline" className="border-primary/20 text-primary uppercase tracking-tighter bg-primary/5 px-3">v0.5.0-ergo [TRI-COL]</Badge>
         </div>
       </header>
 
       <main className="container-fluid mx-auto px-6 py-6">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6 items-start">
+          
+          {/* Column 1: Config & Gear */}
           <div className="xl:col-span-3 space-y-6 lg:sticky lg:top-24">
             <DiegeticFrame title="01. Encounter" subTitle="Combat Parameters">
               <EncounterConditionsPanel
                 conditions={conditions}
                 onChange={setConditions}
+              />
+            </DiegeticFrame>
+
+            <DiegeticFrame title="02. Loadout" subTitle="Master Grid">
+              <GearHub 
+                activeSlot={activeSlot} 
+                onSlotSelect={setActiveSlot} 
+                loadoutNames={loadoutNames} 
+                loadoutRarities={loadoutRarities} 
+              />
+            </DiegeticFrame>
+          </div>
+
+          {/* Column 2: Stats & Details */}
+          <div className="xl:col-span-5 space-y-6">
+            <DynamicStatDisplay baseStats={baseStatsSnapshot} currentStats={currentStats} />
+
+            <StaticDamagePreview player={player} conditions={conditions} />
+
+            <DiegeticFrame title="03. Tuning Matrix" subTitle={`${activeSlot.replace('_', ' ').toUpperCase()} CONFIG`}>
+              <TechnicalSchematic
+                key={activeSlot}
+                slot={activeSlot}
+                selectedItemId={selectedItemIds[activeSlot]}
+                selectedModId={selectedModIds[activeSlot]}
+                selectedSubstats={selectedSubstats[activeSlot]}
+                onItemSelect={(id) => handleItemSelect(activeSlot, id)}
+                onModSelect={(id) => handleModSelect(activeSlot, id)}
+                onSubstatChange={(subs) => handleSubstatChange(activeSlot, subs)}
+                starLevel={starLevels[activeSlot] || 1}
+                onStarLevelChange={(star) => setStarLevels(prev => ({ ...prev, [activeSlot]: star }))}
+                tierLevel={tierLevels[activeSlot] || 5}
+                onTierLevelChange={(tier) => setTierLevels(prev => ({ ...prev, [activeSlot]: tier }))}
+                calibrationLevel={calibrationLevel}
+                onCalibrationLevelChange={setCalibrationLevel}
+                calibrationStyle={calibrationStyle}
+                onCalibrationStyleChange={setCalibrationStyle}
+                weaponDamageBonus={weaponDamageBonus}
+                onWeaponDamageBonusChange={setWeaponDamageBonus}
+                secondaryStatType={secondaryStatType}
+                onSecondaryStatTypeChange={setSecondaryStatType}
+                secondaryStatValue={secondaryStatValue}
+                onSecondaryStatValueChange={setSecondaryStatValue}
                 selectedAmmunition={selectedAmmunition}
                 onAmmunitionChange={setSelectedAmmunition}
               />
             </DiegeticFrame>
-
-            <DiegeticFrame title="02. Loadout" subTitle="Hardware Config">
-              <div className="space-y-6">
-                <SlotDock activeSlot={activeSlot} onSlotSelect={setActiveSlot} slotStatus={slotStatus} />
-                <Separator className="bg-primary/5" />
-                <TechnicalSchematic
-                  key={activeSlot}
-                  slot={activeSlot}
-                  selectedItemId={selectedItemIds[activeSlot]}
-                  selectedModId={selectedModIds[activeSlot]}
-                  selectedSubstats={selectedSubstats[activeSlot]}
-                  onItemSelect={(id) => handleItemSelect(activeSlot, id)}
-                  onModSelect={(id) => handleModSelect(activeSlot, id)}
-                  onSubstatChange={(subs) => handleSubstatChange(activeSlot, subs)}
-                  starLevel={starLevels[activeSlot] || 1}
-                  onStarLevelChange={(star) => setStarLevels(prev => ({ ...prev, [activeSlot]: star }))}
-                  tierLevel={tierLevels[activeSlot] || 5}
-                  onTierLevelChange={(tier) => setTierLevels(prev => ({ ...prev, [activeSlot]: tier }))}
-                  calibrationStyle={calibrationStyle}
-                  onCalibrationStyleChange={setCalibrationStyle}
-                  weaponDamageBonus={weaponDamageBonus}
-                  onWeaponDamageBonusChange={setWeaponDamageBonus}
-                  secondaryStatType={secondaryStatType}
-                  onSecondaryStatTypeChange={setSecondaryStatType}
-                  secondaryStatValue={secondaryStatValue}
-                  onSecondaryStatValueChange={setSecondaryStatValue}
-                />
-              </div>
-            </DiegeticFrame>
-          </div>
-
-          <div className="xl:col-span-4 space-y-6">
-            <DynamicStatDisplay baseStats={baseStatsSnapshot} currentStats={currentStats} telemetry={telemetry} scrubbedIndex={scrubbedIndex} />
 
             <DiegeticFrame title="Bonus Matrix" subTitle="Integrated Logic">
               <div className="flex flex-col h-full">
@@ -200,14 +243,15 @@ function App() {
                     ))}
                   </div>
                 )}
-                <ScrollArea className="h-[calc(100vh-500px)] min-h-[250px] pr-4">
+                <ScrollArea className="h-[250px] pr-4 font-mono">
                   <BuildBreakdown effects={scrubbedEffects || player.activeEffects} />
                 </ScrollArea>
               </div>
             </DiegeticFrame>
           </div>
 
-          <div className="md:col-span-2 xl:col-span-5 space-y-6">
+          {/* Column 3: Analytics */}
+          <div className="md:col-span-2 xl:col-span-4 space-y-6">
             <DiegeticFrame className="p-0 overflow-hidden" title="04. Analytics" subTitle="Telemetry Stream">
               <Tabs defaultValue="dashboard" className="w-full">
                 <div className="px-6 pt-2 flex items-center justify-between">
@@ -219,7 +263,7 @@ function App() {
                 </div>
                 <CardContent className="pt-6">
                   <TabsContent value="dashboard" className="mt-0 outline-none">
-                    <DamageDashboard player={player} conditions={conditions} onScrub={handleScrub} onTelemetryCalculated={setTelemetry} onLogsUpdate={setSimLogs} />
+                    <DamageDashboard player={player} conditions={conditions} onScrub={handleScrub} onLogsUpdate={setSimLogs} />
                   </TabsContent>
                   <TabsContent value="logs" className="mt-0 outline-none">
                     <div className="bg-black/40 rounded border border-white/5 overflow-hidden">
@@ -240,7 +284,7 @@ function App() {
                   </TabsContent>
                   <TabsContent value="diagnostics" className="mt-0 outline-none">
                     <div className="rounded-md border border-primary/10 bg-black/60 p-1">
-                      <CalculationConsole entries={auditLog.getEntries()} />
+                      <CalculationConsole entries={telemetryEntries} />
                     </div>
                   </TabsContent>
                 </CardContent>

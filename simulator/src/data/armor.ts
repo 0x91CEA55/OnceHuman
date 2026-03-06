@@ -178,7 +178,7 @@ export function createArmor(key: ArmorKey, star: number = 1, level: number = 1, 
     // 3. Apply Star Scaling (+5% per star)
     const starMult = 1 + (star - 1) * 0.05;
     
-    stats.psiIntensity.value = Math.round(slotBase * tierMult * starMult);
+    stats.psiIntensity.reset(Math.round(slotBase * tierMult * starMult), 'Scaling');
 
     if (data.setKey && ARMOR_SETS[data.setKey]) {
         const setData = ARMOR_SETS[data.setKey];

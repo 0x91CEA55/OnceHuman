@@ -1,5 +1,5 @@
 import { GearSlot, Rarity, WeaponType, ArmorSlot, StatType, CalibrationStyle } from '../types/enums';
-import { Keyword } from '../pipelines/keyword';
+import { Keyword } from './keyword';
 import { GenericStat, MagazineCapacityStat, CritRateStat } from './stats';
 import { Substat } from './substat';
 import { BaseEffect, StaticAttributeEffect, IncreaseStatEffect } from './effect';
@@ -32,17 +32,18 @@ export class Mod {
     ) {}
 
     apply(ctx: AggregationContext): void {
+        const source = `Mod: ${this.definition.name}`;
         // 1. Apply Substats
         for (const sub of this.substats) {
-            const eff = new StaticAttributeEffect(sub.type, sub.value, `Mod Substat: ${this.definition.name}`);
+            const eff = new StaticAttributeEffect(sub.type, sub.value, `${source} (Substat)`);
             ctx.player.activeEffects.push(eff);
-            eff.applyStatic(ctx.player, ctx.conditions, 1);
+            eff.applyWithContext(ctx, 1);
         }
 
         // 2. Apply Permanent Logic
         for (const eff of this.definition.permanentEffects) {
             ctx.player.activeEffects.push(eff);
-            eff.applyStatic(ctx.player, ctx.conditions, 1);
+            eff.applyWithContext(ctx, 1);
         }
 
         // 3. Apply custom strategy logic
@@ -116,24 +117,25 @@ export class Calibration {
      * Returns the predictable effects based on style and weapon type.
      */
     getStyleEffects(weaponType: WeaponType): BaseEffect[] {
+        const source = `Calibration Style: ${this.style}`;
         const styleEffects: Record<CalibrationStyle, (wt: WeaponType) => BaseEffect[]> = {
             [CalibrationStyle.RapidShot]: (wt) => wt === WeaponType.SniperRifle
                 ? [
-                    new IncreaseStatEffect(StatType.BoltPullingSpeedPercent, 50),
-                    new IncreaseStatEffect(StatType.ActionDelayPercent, -50),
-                    new IncreaseStatEffect(StatType.ReloadSpeedPercent, 15),
-                    new IncreaseStatEffect(StatType.AttackPercent, -10)
+                    new IncreaseStatEffect(StatType.BoltPullingSpeedPercent, 50, source),
+                    new IncreaseStatEffect(StatType.ActionDelayPercent, -50, source),
+                    new IncreaseStatEffect(StatType.ReloadSpeedPercent, 15, source),
+                    new IncreaseStatEffect(StatType.AttackPercent, -10, source)
                   ]
                 : [
-                    new IncreaseStatEffect(StatType.FireRate, 10),
-                    new IncreaseStatEffect(StatType.AccuracyPercent, -50)
+                    new IncreaseStatEffect(StatType.FireRate, 10, source),
+                    new IncreaseStatEffect(StatType.AccuracyPercent, -50, source)
                   ],
             [CalibrationStyle.Heavy]: () => [
-                new IncreaseStatEffect(StatType.AttackPercent, 10),
-                new IncreaseStatEffect(StatType.FireRate, -10)
+                new IncreaseStatEffect(StatType.AttackPercent, 10, source),
+                new IncreaseStatEffect(StatType.FireRate, -10, source)
             ],
             [CalibrationStyle.Precision]: () => [
-                new IncreaseStatEffect(StatType.WeakspotDamagePercent, 15)
+                new IncreaseStatEffect(StatType.WeakspotDamagePercent, 15, source)
             ],
             [CalibrationStyle.Portable]: () => [],
             [CalibrationStyle.None]: () => []
@@ -143,18 +145,25 @@ export class Calibration {
         const effects = factory(weaponType);
 
         if (this.secondaryStatValue !== 0) {
-            effects.push(new IncreaseStatEffect(this.secondaryStatType, this.secondaryStatValue));
+            effects.push(new IncreaseStatEffect(this.secondaryStatType, this.secondaryStatValue, 'Calibration Affix'));
         }
 
         return effects;
     }
 
     /**
-     * Returns the TOTAL base damage multiplier from this calibration (Style + Affix)
+     * Returns the TOTAL base damage bonus PERCENTAGE from this calibration matrix (Style + Affix)
+     */
+    getBaseDmgBonus(): number {
+        const styleBase = STYLE_BASE_DMG_REGISTRY[this.style] || 0;
+        return styleBase + this.weaponDamageBonus;
+    }
+
+    /**
+     * Returns the TOTAL base damage multiplier from this calibration matrix (Style + Affix)
      */
     getBaseDmgMultiplier(): number {
-        const styleBase = STYLE_BASE_DMG_REGISTRY[this.style] || 0;
-        return 1 + (styleBase + this.weaponDamageBonus) / 100;
+        return 1 + this.getBaseDmgBonus() / 100;
     }
 }
 
@@ -173,13 +182,20 @@ export class Weapon extends Equipment {
     ) { super(id, name, rarity, star, level, calibration, mod); }
 
     protected override applyBaseStats(ctx: AggregationContext): void {
-        const calibrationMultiplier = this.calibrationMatrix.getBaseDmgMultiplier();
+        const source = `Weapon: ${this.name}`;
+        // Calibration Level Multiplier (e.g., Level 10 = +20%)
+        const levelBonus = this.calibration * 2;
+        // Matrix Multipliers (Style + RNG Bonus)
+        const matrixBonus = this.calibrationMatrix.getBaseDmgBonus();
+        
+        // Combined Calibration Multiplier (Additive percentages converted to multiplier)
+        const combinedMultiplier = 1 + (levelBonus + matrixBonus) / 100;
 
         const finalBaseDamage = ScalingEngine.calculateFinalBaseDamage(
             this.stats.damagePerProjectile.value,
             this.star,
             this.level,
-            calibrationMultiplier
+            combinedMultiplier
         );
 
         const statsToApply = [
@@ -194,7 +210,7 @@ export class Weapon extends Equipment {
 
         for (const s of statsToApply) {
             if (s.value !== 0) {
-                const eff = new StaticAttributeEffect(s.type, s.value, this.name);
+                const eff = new StaticAttributeEffect(s.type, s.value, source);
                 ctx.player.activeEffects.push(eff);
                 eff.applyStatic(ctx.player, ctx.conditions, 1);
             }
@@ -204,13 +220,13 @@ export class Weapon extends Equipment {
     protected override applyIntrinsicLogic(ctx: AggregationContext): void {
         for (const effect of this.intrinsicEffects) {
             ctx.player.activeEffects.push(effect);
-            effect.applyStatic(ctx.player, ctx.conditions, 1);
+            effect.applyWithContext(ctx, 1);
         }
 
         const calibEffects = this.calibrationMatrix.getStyleEffects(this.type);
         for (const effect of calibEffects) {
             ctx.player.activeEffects.push(effect);
-            effect.applyStatic(ctx.player, ctx.conditions, 1);
+            effect.applyWithContext(ctx, 1);
         }
     }
 
@@ -232,7 +248,7 @@ export class Armor extends Equipment {
     ) { super(id, name, rarity, star, level, calibration, mod); }
 
     protected override applyBaseStats(ctx: AggregationContext): void {
-        const eff = new StaticAttributeEffect(StatType.PsiIntensity, this.stats.psiIntensity.value, this.name);
+        const eff = new StaticAttributeEffect(StatType.PsiIntensity, this.stats.psiIntensity.value, `Armor: ${this.name}`);
         ctx.player.activeEffects.push(eff);
         eff.applyStatic(ctx.player, ctx.conditions, 1);
     }
@@ -249,7 +265,7 @@ export class KeyArmor extends Armor {
     protected override applyIntrinsicLogic(ctx: AggregationContext): void {
         for (const effect of this.intrinsicEffects) {
             ctx.player.activeEffects.push(effect);
-            effect.applyStatic(ctx.player, ctx.conditions, 1);
+            effect.applyWithContext(ctx, 1);
         }
     }
 }
@@ -324,7 +340,7 @@ export class Loadout {
                 if (count >= bonus.requiredPieces) {
                     for (const effect of bonus.effects) {
                         ctx.player.activeEffects.push(effect);
-                        effect.applyStatic(ctx.player, ctx.conditions, 1);
+                        effect.applyWithContext(ctx, 1);
                     }
                 }
             }

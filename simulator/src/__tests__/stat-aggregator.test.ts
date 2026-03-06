@@ -2,7 +2,7 @@ import { StatAggregator } from '../engine/stat-aggregator';
 import { Player, PlayerStats } from '../models/player';
 import { Loadout, Weapon, WeaponStats } from '../models/equipment';
 import { Rarity, WeaponType, StatType, ModKey, EnemyType, EncounterTopology } from '../types/enums';
-import { Burn } from '../pipelines/keyword';
+import { Burn } from '../models/keyword';
 import { DEFAULT_SUBSTATS, createModInstance } from '../data/mods';
 import { EncounterConditions } from '../types/common';
 
