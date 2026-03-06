@@ -54,6 +54,7 @@ export enum BucketId {
 /** Discriminant for ContributionCondition — all typed, no string literals. */
 export enum ConditionType {
     Always              = 'always',
+    TraitMatches        = 'trait_matches',
     KeywordMatches      = 'keyword_matches',
     ElementMatches      = 'element_matches',
     TargetTypeMatches   = 'target_type_matches',
@@ -84,6 +85,7 @@ export type ComparisonOperator = '>' | '<' | '>=' | '<=' | '==';
  */
 export type ContributionCondition =
     | { readonly type: ConditionType.Always }
+    | { readonly type: ConditionType.TraitMatches;        readonly trait: DamageTrait }
     | { readonly type: ConditionType.KeywordMatches;      readonly keyword: KeywordType }
     | { readonly type: ConditionType.ElementMatches;      readonly element: ElementType }
     | { readonly type: ConditionType.TargetTypeMatches;    readonly targetType: EnemyType }

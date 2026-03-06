@@ -1,42 +1,108 @@
-export interface AuditEntry {
-    category: string;
-    label: string;
-    value: string | number | boolean;
-    formula?: string;
-    timestamp: number;
-}
+import { StatType } from '../types/enums';
+import { TraceNode } from '../types/telemetry';
+import { Player } from '../models/player';
+import { useEffect, useState } from 'react';
 
-export class AuditLog {
-    private entries: AuditEntry[] = [];
-    private activeStrategy: string = 'unknown';
+export type TelemetryListener = (entries: TraceNode[]) => void;
 
-    setStrategy(strategy: string) {
-        this.activeStrategy = strategy;
-        this.log('Engine', 'Resolution Strategy', strategy);
-    }
+export class TelemetryManager {
+    private static instance: TelemetryManager;
+    private entries: TraceNode[] = [];
+    private listeners: TelemetryListener[] = [];
 
-    getActiveStrategy(): string {
-        return this.activeStrategy;
-    }
+    private constructor() {}
 
-    log(category: string, label: string, value: string | number | boolean, formula?: string) {
-        this.entries.push({
-            category,
-            label,
-            value,
-            formula,
-            timestamp: Date.now()
-        });
-    }
-
-    getEntries() {
-        return [...this.entries];
+    static getInstance(): TelemetryManager {
+        if (!TelemetryManager.instance) {
+            TelemetryManager.instance = new TelemetryManager();
+        }
+        return TelemetryManager.instance;
     }
 
     clear() {
         this.entries = [];
+        this.notify();
+    }
+
+    record(node: TraceNode) {
+        this.entries.push(node);
+        this.notify();
+    }
+
+    getEntries(): TraceNode[] {
+        return [...this.entries];
+    }
+
+    subscribe(listener: TelemetryListener): () => void {
+        this.listeners.push(listener);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== listener);
+        };
+    }
+
+    private notify() {
+        const snapshot = [...this.entries];
+        this.listeners.forEach(l => l(snapshot));
+    }
+
+    /**
+     * Creates a TraceNode from a Traceable Stat.
+     */
+    public createStatTrace(player: Player, type: StatType): TraceNode {
+        const stat = player.stats.get(type);
+        if (!stat) {
+            return {
+                id: `stat:${type}`,
+                label: type,
+                finalValue: 0,
+                operation: 'identity',
+                contributors: [],
+                timestamp: Date.now()
+            };
+        }
+
+        return {
+            id: `stat:${type}`,
+            label: `Stat: ${type}`,
+            finalValue: stat.value,
+            operation: 'sum',
+            contributors: stat.contributions.map(c => ({
+                label: c.source,
+                value: c.value,
+                type: 'stat',
+                isPercentage: type.toString().includes('Percent')
+            })),
+            timestamp: Date.now()
+        };
+    }
+
+    /**
+     * Legacy shim for AuditLog compatibility.
+     */
+    log(category: string, label: string, value: string | number | boolean, source?: string) {
+        this.record({
+            id: `${category}:${label}:${Date.now()}`,
+            label: `${category} > ${label}`,
+            finalValue: typeof value === 'number' ? value : 0,
+            operation: 'identity',
+            contributors: source ? [{ label: source, value: 0, type: 'constant' }] : [],
+            timestamp: Date.now()
+        });
     }
 }
 
-// Global or Context-based instance
-export const auditLog = new AuditLog();
+export const telemetry = TelemetryManager.getInstance();
+export const auditLog = telemetry; // Legacy export alias
+
+/**
+ * React hook to consume the telemetry stream reactively.
+ */
+export function useTelemetry() {
+    const [entries, setEntries] = useState<TraceNode[]>(telemetry.getEntries());
+
+    useEffect(() => {
+        return telemetry.subscribe(setEntries);
+    }, []);
+
+    return entries;
+}

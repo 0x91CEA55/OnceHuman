@@ -16,7 +16,8 @@ export const MultiplierBalanceChart: React.FC<MultiplierBalanceChartProps> = ({ 
         if (multipliers instanceof Map) {
             return multipliers.get(id) || 1.0;
         }
-        return (multipliers as any)[id] || 1.0;
+        const record = multipliers as Record<string, number>;
+        return record[id] || 1.0;
     };
 
     const data = [

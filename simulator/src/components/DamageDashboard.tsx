@@ -1,12 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Player, PlayerStats } from '../models/player';
-import { PhysicalDamagePipeline } from '../pipelines/physical';
-import { KeywordDamagePipeline } from '../pipelines/keyword';
-import { EncounterConditions, DamageProfile } from '../types/common';
-import { StatType } from '../types/enums';
+import { EncounterConditions } from '../types/common';
+import { StatType, DamageTrait } from '../types/enums';
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { DamageEngine, MonteCarloResult, TelemetryTrack, SimulationLogEntry } from '../engine/damage-engine';
+import { DamageEngine, MonteCarloResult, SimulationLogEntry } from '../engine/damage-engine';
 import { Activity, Scale } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { StatusHUD } from './StatusHUD';
@@ -14,12 +12,12 @@ import { BaseEffect } from '../models/effect';
 import { DamageTimeSeriesChart, DpsDistributionChart } from './AnalyticsCharts';
 import { MultiplierBalanceChart } from './MultiplierBalanceChart';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { resolveScenarioScan, KEYWORD_TRAIT_MAP } from '../engine/resolver';
 
 interface DamageDashboardProps {
     player: Player;
     conditions: EncounterConditions;
     onScrub?: (stats: Record<StatType, number> | null, buffs: { name: string, stacks: number }[], effects?: BaseEffect[], index?: number) => void;
-    onTelemetryCalculated?: (telemetry: TelemetryTrack) => void;
     onLogsUpdate?: (logs: SimulationLogEntry[]) => void;
 }
 
@@ -27,7 +25,6 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
     player, 
     conditions, 
     onScrub, 
-    onTelemetryCalculated,
     onLogsUpdate 
 }) => {
     const [mcResult, setMcResult] = useState<MonteCarloResult | null>(null);
@@ -69,11 +66,20 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
         }
     }, [timelineIndex, simLogs, onScrub, mcResult]);
 
-    const physicalPipeline = useMemo(() => new PhysicalDamagePipeline(), []);
-    const keywordPipeline = useMemo(() => new KeywordDamagePipeline(), []);
+    const weapon = scrubbedPlayer.loadout.weapon;
+    const baseDamage = scrubbedPlayer.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
 
-    const physicalProfile = useMemo(() => physicalPipeline.calculate(scrubbedPlayer, conditions), [scrubbedPlayer, conditions, physicalPipeline]);
-    const keywordProfile = useMemo(() => keywordPipeline.calculate(scrubbedPlayer, conditions), [scrubbedPlayer, conditions, keywordPipeline]);
+    const physicalTraits = useMemo(() => new Set([DamageTrait.Attack, DamageTrait.Weapon]), []);
+    const physicalProfile = useMemo(() => 
+        resolveScenarioScan(baseDamage, scrubbedPlayer, conditions.enemyType, physicalTraits),
+    [baseDamage, scrubbedPlayer, conditions.enemyType, physicalTraits]);
+
+    const keywordProfile = useMemo(() => {
+        if (!weapon?.keyword || !weapon.keyword.baseStatType || weapon.keyword.scalingFactor === undefined) return null;
+        const traits = new Set(KEYWORD_TRAIT_MAP[weapon.keyword.type] || []);
+        const kwBase = (scrubbedPlayer.stats.get(weapon.keyword.baseStatType)?.value ?? 0) * weapon.keyword.scalingFactor;
+        return resolveScenarioScan(kwBase, scrubbedPlayer, conditions.enemyType, traits);
+    }, [weapon, scrubbedPlayer, conditions.enemyType]);
 
     const runMonteCarloSim = async () => {
         setIsSimulating(true);
@@ -84,12 +90,11 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
         const result = await engine.runMonteCarlo(500, (p) => setProgress(Math.round(p * 100))); 
         setMcResult(result);
         setTimelineIndex(result.sampleLogs.length > 0 ? result.sampleLogs.length - 1 : 0);
-        if (onTelemetryCalculated) onTelemetryCalculated(result.telemetry);
         if (onLogsUpdate) onLogsUpdate(result.sampleLogs);
         setIsSimulating(false);
     };
 
-    const renderPowerReadout = (title: string, profile: DamageProfile, color: string) => (
+    const renderPowerReadout = (title: string, profile: any, color: string) => (
         <div className={`border-l-2 pl-3 py-1 bg-${color}/5 border-${color}/40 group`}>
             <div className="flex justify-between items-start">
                 <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">{title}</span>
@@ -191,12 +196,12 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
                                     {/* Multiplier Radar Chart */}
                                     <div className="mb-4 bg-black/40 border border-white/5 pt-2">
                                         <div className="text-[6px] font-black text-primary/40 uppercase tracking-widest text-center mb-[-10px] relative z-10">Bucket_Balance_Analysis</div>
-                                        <MultiplierBalanceChart multipliers={currentEntry?.bucketMultipliers || {}} />
+                                        <MultiplierBalanceChart multipliers={currentEntry?.bucketMultipliers || new Map()} />
                                     </div>
 
                                     <div className="space-y-2">
                                         {renderPowerReadout("Kinetic", physicalProfile, "primary")}
-                                        {player.loadout.weapon?.keyword && renderPowerReadout(player.loadout.weapon.keyword.type, keywordProfile, "primary")}
+                                        {keywordProfile && renderPowerReadout(weapon?.keyword?.type || "KW", keywordProfile, "primary")}
                                     </div>
                                 </div>
                             </div>

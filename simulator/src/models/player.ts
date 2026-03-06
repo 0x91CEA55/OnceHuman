@@ -69,11 +69,11 @@ export class PlayerStats {
     }
 
     reset(): void {
-        this.stats.clear();
+        this.stats.forEach(s => s.reset());
         this.initialize();
     }
 
-    get(type: StatType): GenericStat | undefined {
+    get(type: StatType): Stat | undefined {
         return this.stats.get(type);
     }
 
@@ -96,26 +96,26 @@ export class PlayerStats {
     applySnapshot(snap: Record<StatType, number>): void {
         this.stats.forEach((stat, type) => {
             if (snap[type] !== undefined) {
-                stat.value = snap[type];
+                stat.reset(snap[type], 'Snapshot');
             }
         });
     }
 
-    add(type: StatType, value: number): void {
+    add(type: StatType, value: number, source: string = 'Unknown'): void {
         const stat = this.stats.get(type);
         if (stat) {
-            stat.add(value);
+            stat.add(value, source);
         } else {
-            this.stats.set(type, new GenericStat(type, value));
+            this.stats.set(type, new GenericStat(type, value, source));
         }
     }
 
-    set(type: StatType, value: number): void {
+    set(type: StatType, value: number, source: string = 'Baseline'): void {
         const stat = this.stats.get(type);
         if (stat) {
-            stat.value = value;
+            stat.reset(value, source);
         } else {
-            this.stats.set(type, new GenericStat(type, value));
+            this.stats.set(type, new GenericStat(type, value, source));
         }
     }
 }

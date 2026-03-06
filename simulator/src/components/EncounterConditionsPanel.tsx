@@ -1,139 +1,128 @@
 import React from 'react';
 import { EncounterConditions } from '../types/common';
-import { EnemyType, AmmunitionType } from '../types/enums';
+import { EnemyType, EncounterTopology } from '../types/enums';
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Target, Radio, ShieldAlert, Activity } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface EncounterConditionsPanelProps {
     conditions: EncounterConditions;
     onChange: (conditions: EncounterConditions) => void;
-    selectedAmmunition: AmmunitionType;
-    onAmmunitionChange: (ammo: AmmunitionType) => void;
 }
 
-export const EncounterConditionsPanel: React.FC<EncounterConditionsPanelProps> = ({
-    conditions,
-    onChange,
-    selectedAmmunition,
-    onAmmunitionChange
+export const EncounterConditionsPanel: React.FC<EncounterConditionsPanelProps> = ({ 
+    conditions, 
+    onChange
 }) => {
-    const handleUpdate = (updates: Partial<EncounterConditions>) => {
-        onChange({ ...conditions, ...updates });
+    const update = (patch: Partial<EncounterConditions>) => {
+        onChange(Object.assign(new EncounterConditions(), conditions, patch));
     };
 
     return (
-        <div className="space-y-4 px-1">
-            {/* Row 1: Enemy Type & Vulnerability Toggle */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                    <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
-                        <Radio className="w-2 h-2 text-primary" /> Object_Class
-                    </Label>
-                    <Select 
-                        value={conditions.enemyType} 
-                        onValueChange={(val) => handleUpdate({ enemyType: val as EnemyType })}
-                    >
-                        <SelectTrigger className="h-6 text-[9px] bg-black/40 border-white/5 font-black uppercase hover:border-primary/30 transition-all rounded-none px-2">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-black border-primary/20">
-                            {Object.values(EnemyType).map(type => (
-                                <SelectItem key={type} value={type} className="text-[9px] font-bold uppercase">
-                                    {type}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+        <div className="space-y-5 animate-in fade-in duration-500">
+            {/* Enemy Configuration */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Target_Type</Label>
+                    <span className="text-[8px] font-mono text-primary/60">ENUM_VAL</span>
                 </div>
-
-                <div className="space-y-1.5">
-                    <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
-                        <ShieldAlert className={cn("w-2 h-2 transition-colors", conditions.isTargetVulnerable ? "text-red-500" : "text-muted-foreground/40")} /> Override
-                    </Label>
-                    <label 
-                        htmlFor="vulnerable-check"
-                        className="flex items-center justify-between h-6 bg-black/40 border border-white/5 px-2 cursor-pointer hover:bg-red-500/5 hover:border-red-500/30 transition-all group"
-                    >
-                        <span className={cn("text-[8px] font-black uppercase tracking-tighter transition-colors", conditions.isTargetVulnerable ? "text-red-400" : "text-muted-foreground/40")}>
-                            {conditions.isTargetVulnerable ? "VULN_ON" : "VULN_OFF"}
-                        </span>
-                        <Checkbox 
-                            id="vulnerable-check"
-                            checked={conditions.isTargetVulnerable}
-                            onCheckedChange={(checked) => handleUpdate({ isTargetVulnerable: !!checked })}
-                            className="w-3 h-3 border-white/20 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500 rounded-none"
-                        />
-                    </label>
-                </div>
-            </div>
-
-            {/* Row 2: Weakspot & Distance */}
-            <div className="grid grid-cols-2 gap-4 pt-1">
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
-                            <Target className="w-2 h-2 text-primary" /> Precision
-                        </Label>
-                        <span className="text-[9px] font-mono font-black text-foreground">{Math.round(conditions.weakspotHitRate * 100)}%</span>
-                    </div>
-                    <Slider 
-                        min={0} 
-                        max={1} 
-                        step={0.01} 
-                        value={[conditions.weakspotHitRate]}
-                        onValueChange={([val]) => handleUpdate({ weakspotHitRate: val })}
-                        className="py-0.5"
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
-                            <Activity className="w-2 h-2 text-primary" /> Distance
-                        </Label>
-                        <span className="text-[9px] font-mono font-black text-foreground">{conditions.targetDistanceMeters}m</span>
-                    </div>
-                    <Slider 
-                        min={1} 
-                        max={100} 
-                        step={1} 
-                        value={[conditions.targetDistanceMeters]}
-                        onValueChange={([val]) => handleUpdate({ targetDistanceMeters: val })}
-                        className="py-0.5"
-                    />
-                </div>
-            </div>
-
-            {/* Row 3: Ammunition Selection (The PSI Source) */}
-            <div className="space-y-1.5 pt-1">
-                <Label className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground flex gap-1 items-center">
-                    <Radio className="w-2 h-2 text-blue-400" /> Ordnance_Load
-                </Label>
                 <Select 
-                    value={selectedAmmunition} 
-                    onValueChange={(val) => onAmmunitionChange(val as AmmunitionType)}
+                    value={conditions.enemyType} 
+                    onValueChange={(val) => update({ enemyType: val as EnemyType })}
                 >
-                    <SelectTrigger className="h-6 text-[9px] bg-black/40 border-white/5 font-black uppercase hover:border-blue-400/30 transition-all rounded-none px-2">
+                    <SelectTrigger className="h-8 text-xs bg-black/40 border-primary/10 hover:border-primary/30 transition-colors uppercase font-bold">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-black border-primary/20">
-                        {Object.values(AmmunitionType).map(type => (
-                            <SelectItem key={type} value={type} className="text-[9px] font-bold uppercase">
-                                {type.replace(/_/g, ' ')}
-                            </SelectItem>
+                        {Object.values(EnemyType).map(type => (
+                            <SelectItem key={type} value={type} className="text-xs uppercase font-bold">{type}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
             </div>
-            
-            {/* Metadata Footer Line */}
-            <div className="pt-1 border-t border-white/5 flex justify-between">
-                <span className="text-[5px] font-mono text-primary/20 uppercase tracking-[0.2em]">Environmental_Sim_Core</span>
-                <span className="text-[5px] font-mono text-primary/20 uppercase tracking-[0.2em]">OBJ_ID::{conditions.enemyType.toUpperCase()}</span>
+
+            {/* Topology Selection */}
+            <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Engagement_Topology</Label>
+                <Select 
+                    value={conditions.topology} 
+                    onValueChange={(val) => update({ topology: val as EncounterTopology })}
+                >
+                    <SelectTrigger className="h-8 text-xs bg-black/40 border-primary/10 hover:border-primary/30 transition-colors uppercase font-bold">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black border-primary/20">
+                        {Object.values(EncounterTopology).map((t: EncounterTopology) => (
+                            <SelectItem key={t} value={t} className="text-xs uppercase font-bold">{t.replace('-', ' ')}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* Multi-Slider Matrix */}
+            <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Distance</Label>
+                        <span className="text-[10px] font-mono font-black text-primary">{conditions.targetDistanceMeters}m</span>
+                    </div>
+                    <Slider 
+                        value={[conditions.targetDistanceMeters]} 
+                        min={1} max={50} step={1}
+                        onValueChange={([val]) => update({ targetDistanceMeters: val })}
+                        className="py-2"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-red-400/80">Integrity_HP</Label>
+                        <span className="text-[10px] font-mono font-black text-red-400">{conditions.playerHpPercent}%</span>
+                    </div>
+                    <Slider 
+                        value={[conditions.playerHpPercent]} 
+                        min={1} max={100} step={1}
+                        onValueChange={([val]) => update({ playerHpPercent: val })}
+                        className="py-2"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-blue-400/80">Shield_Static</Label>
+                        <span className="text-[10px] font-mono font-black text-blue-400">{conditions.playerShieldPercent}%</span>
+                    </div>
+                    <Slider 
+                        value={[conditions.playerShieldPercent]} 
+                        min={0} max={100} step={1}
+                        onValueChange={([val]) => update({ playerShieldPercent: val })}
+                        className="py-2"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">WS_Success_Prob</Label>
+                        <span className="text-[10px] font-mono font-black text-primary">{(conditions.weakspotHitRate * 100).toFixed(0)}%</span>
+                    </div>
+                    <Slider 
+                        value={[conditions.weakspotHitRate * 100]} 
+                        min={0} max={100} step={1}
+                        onValueChange={([val]) => update({ weakspotHitRate: val / 100 })}
+                        className="py-2"
+                    />
+                </div>
+            </div>
+
+            {/* Boolean Logic Toggles */}
+            <div className="pt-2 border-t border-primary/10 mt-2 space-y-3">
+                <div className="flex items-center space-x-2 bg-primary/5 p-2 rounded-sm border border-primary/10 hover:border-primary/30 transition-colors cursor-pointer group" onClick={() => update({ isTargetVulnerable: !conditions.isTargetVulnerable })}>
+                    <Checkbox id="vulnerable" checked={conditions.isTargetVulnerable} />
+                    <label htmlFor="vulnerable" className="text-[9px] font-black uppercase tracking-tighter text-muted-foreground group-hover:text-primary transition-colors cursor-pointer">
+                        Target_Vulnerability_Override
+                    </label>
+                </div>
             </div>
         </div>
     );

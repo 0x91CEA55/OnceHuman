@@ -1,6 +1,6 @@
 import React from 'react';
 import { GearSlot, ModKey } from '../types/enums';
-import { RAW_WEAPONS } from '../data/weapons';
+import { ACTIVE_REGISTRY } from '../data/generated/registry';
 import { ARMOR } from '../data/armor';
 import { MODS } from '../data/mods';
 import { Label } from "@/components/ui/label"
@@ -31,7 +31,7 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
 }) => {
     // Filter items based on slot
     const items = slot === 'weapon_main'
-        ? Object.values(RAW_WEAPONS)
+        ? Object.values(ACTIVE_REGISTRY).map(b => ({ id: b.key, name: b.name }))
         : Object.values(ARMOR).filter(a => a.slot === slot);
 
     // Filter mods based on slot

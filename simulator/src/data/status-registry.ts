@@ -1,11 +1,5 @@
 /**
  * Status Definition Registry — pure data.
- *
- * All DoT and Buff definitions extracted from the old class hierarchy
- * (DoTEffect, BuffEffect, ActiveDoT, ActiveBuff) into plain typed objects.
- *
- * ADR-003: Status definitions are configuration, not game state.
- * They live in PhaseContext (or here, as module-level constants), never in World.
  */
 
 import { StatType, DamageTrait } from '../types/enums';
@@ -65,6 +59,16 @@ export const BULLS_EYE_BUFF: BuffDefinition = {
     ],
 };
 
+export const POWER_SURGE_BUFF: BuffDefinition = {
+    id: buffId('buff-power-surge'),
+    name: 'Power Surge Bonus',
+    baseDurationSeconds: 6,
+    baseMaxStacks: 1,
+    statContributions: [
+        { stat: StatType.PowerSurgeDamagePercent, valuePerStack: 40 },
+    ],
+};
+
 export const PROFICIENCY_BUFF: BuffDefinition = {
     id: buffId('buff-proficiency'),
     name: 'Proficiency',
@@ -97,6 +101,36 @@ export const PRECISE_STRIKE_BUFF: BuffDefinition = {
     ],
 };
 
+export const ARCHERS_FOCUS_BUFF: BuffDefinition = {
+    id: buffId('buff-archers-focus'),
+    name: "Archer's Focus",
+    baseDurationSeconds: 10,
+    baseMaxStacks: 10,
+    statContributions: [
+        { stat: StatType.WeakspotDamagePercent, valuePerStack: 4 },
+    ],
+};
+
+export const LONE_SHADOW_BUFF: BuffDefinition = {
+    id: buffId('buff-lone-shadow'),
+    name: 'Lone Shadow',
+    baseDurationSeconds: 30,
+    baseMaxStacks: 10,
+    statContributions: [
+        { stat: StatType.CritDamagePercent, valuePerStack: 6 },
+    ],
+};
+
+export const FORTRESS_WARFARE_BUFF: BuffDefinition = {
+    id: buffId('buff-fortress-warfare'),
+    name: 'Fortress Warfare',
+    baseDurationSeconds: 10,
+    baseMaxStacks: 1,
+    statContributions: [
+        { stat: StatType.CritRatePercent, valuePerStack: 15 },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Registry
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,9 +143,13 @@ const DOT_REGISTRY = new Map<string, DoTDefinition>([
 const BUFF_REGISTRY = new Map<string, BuffDefinition>([
     [FAST_GUNNER_BUFF.id,    FAST_GUNNER_BUFF],
     [BULLS_EYE_BUFF.id,      BULLS_EYE_BUFF],
+    [POWER_SURGE_BUFF.id,    POWER_SURGE_BUFF],
     [PROFICIENCY_BUFF.id,    PROFICIENCY_BUFF],
     [FIRST_MOVE_BUFF.id,     FIRST_MOVE_BUFF],
     [PRECISE_STRIKE_BUFF.id, PRECISE_STRIKE_BUFF],
+    [ARCHERS_FOCUS_BUFF.id,  ARCHERS_FOCUS_BUFF],
+    [LONE_SHADOW_BUFF.id,    LONE_SHADOW_BUFF],
+    [FORTRESS_WARFARE_BUFF.id, FORTRESS_WARFARE_BUFF],
 ]);
 
 export class StatusRegistry {

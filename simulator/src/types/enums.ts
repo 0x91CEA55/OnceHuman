@@ -5,7 +5,21 @@ export enum WeaponKey {
     SOCRLastValor = 'socr_last_valor',
     KVDBoomBoom = 'kvd_boom_boom',
     MPS5PrimalRage = 'mps5_primal_rage',
-    OctopusGrilledRings = 'octopus_grilled_rings'
+    OctopusGrilledRings = 'octopus_grilled_rings',
+    DBSGDoombringer = 'dbsg_doombringer',
+    MPS7OuterSpace = 'mps7_outer_space',
+    KAMAbyssGlance = 'kam_abyss_glance',
+    AWS338Bullseye = 'aws338_bullseye',
+    MG4ConflictingMemories = 'mg4_conflicting_memories',
+    G17HazardousObject = 'g17_hazardous_object',
+    ACS12Corrosion = 'acs12_corrosion',
+    MPS5Kumawink = 'mps5_kumawink',
+    HAMRBrahminy = 'hamr_brahminy',
+    PDW90HolographicResonance = 'pdw90_holographic_resonance',
+    ACS12PyroclasmStarter = 'acs12_pyroclasm_starter',
+    M416SilentAnabasis = 'm416_silent_anabasis',
+    KVSBRLittleJaws = 'kv-sbr_little_jaws',
+    TEC9AdditionalRules = 'tec9_additional_rules'
 }
 
 export enum ArmorSlot { Helmet = 'helmet', Mask = 'mask', Top = 'top', Gloves = 'gloves', Pants = 'pants', Boots = 'boots' }

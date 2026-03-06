@@ -3,12 +3,12 @@ import { Enemy } from '../models/enemy';
 import { EncounterConditions } from '../types/common';
 import { StatType, DamageTrait } from '../types/enums';
 import { StatAggregator } from './stat-aggregator';
-import { auditLog } from './audit-log';
+import { telemetry } from './audit-log';
 
 import { runTriggerEvaluation, TriggerEvent, TriggerEvalContext } from './trigger-system';
 import { runEffectExecution, EffectExecutionContext, StatusTickContext } from './effect-system';
 import { TriggerType } from '../types/trigger-types';
-import { TriggerCounterKey, CooldownKey } from '../types/keys';
+import { TriggerCounterKey, CooldownKey, dotId, buffId } from '../types/keys';
 import { RngService, MathRandomRng } from './rng';
 import { STATUS_REGISTRY } from '../data/status-registry';
 import { 
@@ -90,12 +90,12 @@ export class DamageEngine {
     constructor(
         private player: Player,
         private conditions: EncounterConditions,
-        _unusedStrategy?: any,
+        _unusedStrategy?: unknown,
         rng?: RngService
     ) {
         this.rng = rng ?? new MathRandomRng();
 
-        auditLog.log('Engine', 'Initialization', `Started DamageEngine with Universal data-driven paradigm`);
+        telemetry.log('Engine', 'Initialization', `Started DamageEngine with Universal data-driven paradigm`);
 
         this.primaryTarget = new Enemy('boss-1', 9999999);
         this.allEnemies = [this.primaryTarget];
@@ -143,7 +143,7 @@ export class DamageEngine {
             // Set weakspot hit rate in player stats for the data-driven roll
             this.player.stats.set(StatType.WeakspotHitRatePercent, this.conditions.weakspotHitRate * 100);
             
-            StatAggregator.aggregate(this.player, this.conditions, ammoPercent);
+            StatAggregator.aggregate(this.player, this.conditions, ammoPercent, true); // Keep quiet during simulation
 
             this.simulateShot(shotCount);
             this.advanceTime(shotInterval);
@@ -295,7 +295,7 @@ export class DamageEngine {
             event,
             evalCtx,
             (triggerId, depth) => {
-                auditLog.log('TriggerDepth', 'Exceeded', `${triggerId} at depth ${depth}`);
+                telemetry.log('TriggerDepth', 'Exceeded', `${triggerId} at depth ${depth}`);
             }
         );
 
@@ -309,8 +309,8 @@ export class DamageEngine {
             targetDoTs: this.primaryTarget.statusManager.activeDoTs,
             targetBuffs: this.primaryTarget.statusManager.activeBuffs,
             playerBuffs: this.player.statusManager.activeBuffs,
-            dotRegistry: (id) => STATUS_REGISTRY.getDot(id as any),
-            buffRegistry: (id) => STATUS_REGISTRY.getBuff(id as any),
+            dotRegistry: (id) => STATUS_REGISTRY.getDot(dotId(id)),
+            buffRegistry: (id) => STATUS_REGISTRY.getBuff(buffId(id)),
             recordDamage: (amount, label, _traits) => {
                 this.recordDamageEvent(amount);
                 this.log(this.currentTime, 'Effect Damage', `${label}: ${Math.round(amount)}`, amount);
@@ -341,8 +341,8 @@ export class DamageEngine {
                     this.log(this.currentTime, 'DoT Tick', `${label}: ${Math.round(amount)}`, amount);
                 },
                 logEvent: (evt, desc) => this.log(this.currentTime, evt, desc),
-                dotRegistry: (id) => STATUS_REGISTRY.getDot(id as any),
-                buffRegistry: (id) => STATUS_REGISTRY.getBuff(id as any),
+                dotRegistry: (id) => STATUS_REGISTRY.getDot(dotId(id)),
+                buffRegistry: (id) => STATUS_REGISTRY.getBuff(buffId(id)),
             };
 
             this.player.statusManager.tick(step, tickCtx);

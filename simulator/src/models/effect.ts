@@ -1,3 +1,5 @@
+// simulator/src/models/effect.ts
+
 import { StatType, FlagType } from '../types/enums';
 import { Player } from './player';
 import { EncounterConditions, AggregationContext } from '../types/common';
@@ -13,6 +15,16 @@ export abstract class BaseEffect {
     constructor(public source?: string) {}
 
     abstract applyStatic(player: Player, conditions: EncounterConditions, multiplier: number): void;
+
+    /**
+     * ADR-007: Context-aware application path.
+     * Default delegates to applyStatic for backward compat.
+     * Override in effects that require ctx.ammoPercent or other context fields.
+     */
+    applyWithContext(ctx: AggregationContext, multiplier: number = 1): void {
+        this.applyStatic(ctx.player, ctx.conditions, multiplier);
+    }
+
     /** @deprecated Not called by the ADR-003 engine. Stub implementations are acceptable. */
     executeDynamic(_ctx: LegacyCombatContext, _event?: unknown): void {}
     abstract getDescription(): string;
@@ -29,16 +41,29 @@ export class ConditionalEffect extends BaseEffect {
     }
 
     applyStatic(player: Player, conditions: EncounterConditions, multiplier: number = 1): void {
+        // Legacy path: builds context with hardcoded ammoPercent=1.0.
+        // Use applyWithContext for ammo-sensitive predicates.
         const ctx: AggregationContext = {
             player,
             conditions,
             ammoPercent: 1.0,
             loadout: player.loadout
         };
-
         if (this.predicate(ctx)) {
             for (const effect of this.effects) {
                 effect.applyStatic(player, conditions, multiplier);
+            }
+        }
+    }
+
+    /**
+     * ADR-007: Override to propagate real ammoPercent from the outer context.
+     * This is the correct path for ammo-sensitive conditionals (e.g. MomentumUp).
+     */
+    override applyWithContext(ctx: AggregationContext, multiplier: number = 1): void {
+        if (this.predicate(ctx)) {
+            for (const effect of this.effects) {
+                effect.applyWithContext(ctx, multiplier);
             }
         }
     }
@@ -52,6 +77,50 @@ export class ConditionalEffect extends BaseEffect {
     }
 }
 
+/**
+ * ADR-006 §2.1 / ADR-007: Effect whose stat contribution is computed at aggregation time.
+ * Supports stack-dependent, position-dependent, or condition-derived bonuses.
+ * Uses applyWithContext exclusively — applyStatic delegates but loses ammoPercent precision.
+ */
+export class DynamicStatEffect extends BaseEffect {
+    constructor(
+        public readonly stat: StatType,
+        public readonly valueFn: (ctx: AggregationContext) => number,
+        source?: string
+    ) {
+        super(source);
+    }
+
+    applyStatic(player: Player, conditions: EncounterConditions, multiplier: number = 1): void {
+        // Fallback: ammoPercent is 1.0. Correct for HP/Sanity-dependent mods,
+        // incorrect for ammo-position-dependent mods. Prefer applyWithContext.
+        const ctx: AggregationContext = {
+            player,
+            conditions,
+            ammoPercent: 1.0,
+            loadout: player.loadout
+        };
+        const dynamicValue = this.valueFn(ctx);
+        player.stats.add(this.stat, dynamicValue * multiplier, this.source || 'Dynamic Calculation');
+    }
+
+    /**
+     * ADR-007: Override for full-fidelity context access.
+     */
+    override applyWithContext(ctx: AggregationContext, multiplier: number = 1): void {
+        const dynamicValue = this.valueFn(ctx);
+        ctx.player.stats.add(this.stat, dynamicValue * multiplier, this.source || 'Dynamic Calculation');
+    }
+
+    getDescription(): string {
+        return `Dynamic calculation for ${this.stat}`;
+    }
+
+    clone(newSource?: string): DynamicStatEffect {
+        return new DynamicStatEffect(this.stat, this.valueFn, newSource ?? this.source);
+    }
+}
+
 export class IncreaseStatEffect extends BaseEffect {
     constructor(
         public readonly stat: StatType,
@@ -62,7 +131,7 @@ export class IncreaseStatEffect extends BaseEffect {
     }
 
     applyStatic(player: Player, _conditions: EncounterConditions, multiplier: number = 1): void {
-        player.stats.add(this.stat, this.value * multiplier);
+        player.stats.add(this.stat, this.value * multiplier, this.source || 'Bonus');
     }
 
     getDescription(): string {
@@ -106,7 +175,7 @@ export class StaticAttributeEffect extends BaseEffect {
     }
 
     applyStatic(player: Player, _conditions: EncounterConditions, multiplier: number = 1): void {
-        player.stats.add(this.stat, this.value * multiplier);
+        player.stats.add(this.stat, this.value * multiplier, this.source || 'Static Attribute');
     }
 
     getDescription(): string {
