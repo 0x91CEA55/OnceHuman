@@ -65,7 +65,7 @@ export const POWER_SURGE_BUFF: BuffDefinition = {
     baseDurationSeconds: 6,
     baseMaxStacks: 1,
     statContributions: [
-        { stat: StatType.PowerSurgeDamagePercent, valuePerStack: 40 },
+        { stat: StatType.PowerSurgeDamageFactor, valuePerStack: 40 },
     ],
 };
 

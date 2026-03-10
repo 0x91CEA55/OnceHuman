@@ -384,7 +384,7 @@ export interface BuffDefinition {
     readonly statContributions: readonly { stat: StatType; valuePerStack: number }[];
 }
 
-export interface DoTInstance {
+export interface ActiveDoT {
     readonly definitionId: DoTId;
     currentStacks: number;
     remainingDurationSeconds: number;
@@ -393,7 +393,7 @@ export interface DoTInstance {
     readonly durationSeconds: number;
 }
 
-export interface BuffInstance {
+export interface ActiveBuff {
     readonly definitionId: BuffId;
     currentStacks: number;
     remainingDurationSeconds: number;
@@ -416,8 +416,8 @@ export interface CombatStateComponent {
     readonly entityId: EntityId;
     counters: Map<TriggerCounterKey, number>;     // Typed — no raw string keys
     cooldowns: Map<CooldownKey, number>;           // Stores expiry time (seconds)
-    activeDoTs: DoTInstance[];
-    activeBuffs: BuffInstance[];
+    activeDoTs: ActiveDoT[];
+    activeBuffs: ActiveBuff[];
     eventQueue: QueuedCombatEvent[];               // In-pipeline event queue
     pendingEffects: PendingEffectRecord[];          // Awaiting effectExecutionSystem
 }
@@ -902,7 +902,7 @@ ADR-001's phase pipeline updates as follows:
 | `eventEmissionSystem` | Unchanged in role; now writes typed `QueuedCombatEvent` to `CombatStateComponent.eventQueue` |
 | `triggerEvaluationSystem` | Fully redesigned — evaluates `TriggerDefinition[]` against the event queue; uses `triggerMatches()` + `evaluateTriggerCondition()` |
 | `effectExecutionSystem` | Fully redesigned — executes `EffectDef` discriminated union; all DamageInstance effects pass through UNIVERSAL_BUCKETS |
-| `statusTickSystem` | Unchanged in role; now reads `DoTInstance[]` from `CombatStateComponent`; calls `resolve()` from ADR-002 for tick damage |
+| `statusTickSystem` | Unchanged in role; now reads `ActiveDoT[]` from `CombatStateComponent`; calls `resolve()` from ADR-002 for tick damage |
 | `CombatEventBus` (pub/sub) | **Deleted** — replaced by `CombatStateComponent.eventQueue` (in-World data) |
 | `EffectRegistry` (static class) | **Deleted** — replaced by `TriggerDefinition[]` in `LoadoutComponent` (produced by `GameDataCompiler`) |
 
@@ -912,7 +912,7 @@ ADR-002 connects as follows:
 |---|---|
 | `resolve(baseDmg, UNIVERSAL_BUCKETS, ctx)` | Called for every `DamageInstance` effect — secondary damage passes through the full bucket topology |
 | `ResolutionContext` | Built for secondary intents the same way as primary intents — from the source entity's current `StatsComponent` |
-| `DoTInstance.tick()` damage | Produced by `statusTickSystem`, calls `resolve()` with appropriate traits — no embedded `DamageProcessor` |
+| `ActiveDoT.tick()` damage | Produced by `statusTickSystem`, calls `resolve()` with appropriate traits — no embedded `DamageProcessor` |
 | `RuleMutation.ModifyMaxStacks` etc. | Applied at loadout compile time; stored as resolved values in `DoTDefinition` overrides per loadout |
 
 ---
@@ -962,7 +962,7 @@ const COMBAT_PIPELINE: System[] = [
 1. [ ] Add `TriggerType`, `TriggerConditionType`, `EffectType`, `EffectTargetType` to `types/enums.ts`.
 2. [ ] Add `TriggerDef`, `TriggerConditionDef`, `EffectDef`, `EffectTarget`, `TriggerDefinition` interfaces to a new `types/triggers.ts`.
 3. [ ] Add `TriggerCounterKey`, `CooldownKey`, `DoTId`, `BuffId` branded types with factory functions to `types/keys.ts`.
-4. [ ] Add `DoTDefinition`, `BuffDefinition`, `DoTInstance`, `BuffInstance` to `types/status.ts`.
+4. [ ] Add `DoTDefinition`, `BuffDefinition`, `ActiveDoT`, `ActiveBuff` to `types/status.ts`.
 5. [ ] Update `CombatStateComponent` to use branded key maps and typed instance arrays.
 
 ### Phase 2: Status Definition Registry

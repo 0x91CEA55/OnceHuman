@@ -1,29 +1,34 @@
 import React, { useMemo, useState } from 'react';
-import { Player, PlayerStats } from '../models/player';
-import { EncounterConditions } from '../types/common';
-import { StatType, DamageTrait } from '../types/enums';
+import { EncounterConditions, IEffect } from '../types/common';
+import { StatType, DamageTrait, FlagType, AmmunitionType } from '../types/enums';
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { DamageEngine, MonteCarloResult, SimulationLogEntry } from '../engine/damage-engine';
+import { SimulationRunner, MonteCarloResult, SimulationLogEntry } from '../engine/simulation-runner';
 import { Activity, Scale } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { StatusHUD } from './StatusHUD';
-import { BaseEffect } from '../models/effect';
 import { DamageTimeSeriesChart, DpsDistributionChart } from './AnalyticsCharts';
 import { MultiplierBalanceChart } from './MultiplierBalanceChart';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { resolveScenarioScan, KEYWORD_TRAIT_MAP } from '../engine/resolver';
+import { resolveScenarioScan, KEYWORD_TRAIT_MAP, ScenarioScanResult } from '../engine/resolver';
+import { StatsComponent, FlagComponent } from '../ecs/types';
+import { World, EntityId } from '../ecs/world';
+import { KEYWORD_METADATA, canKeywordCrit, canKeywordWeakspot } from '../data/keywords';
 
 interface DamageDashboardProps {
-    player: Player;
+    world: World;
+    playerId: EntityId;
     conditions: EncounterConditions;
-    onScrub?: (stats: Record<StatType, number> | null, buffs: { name: string, stacks: number }[], effects?: BaseEffect[], index?: number) => void;
+    selectedAmmunition: AmmunitionType;
+    onScrub?: (stats: Record<StatType, number> | null, buffs: { name: string, stacks: number }[], effects?: IEffect[], index?: number) => void;
     onLogsUpdate?: (logs: SimulationLogEntry[]) => void;
 }
 
 export const DamageDashboard: React.FC<DamageDashboardProps> = ({ 
-    player, 
+    world,
+    playerId,
     conditions, 
+    selectedAmmunition,
     onScrub, 
     onLogsUpdate 
 }) => {
@@ -35,12 +40,31 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
     const simLogs = mcResult?.sampleLogs || [];
     const currentEntry = simLogs[timelineIndex];
 
-    const scrubbedPlayer = useMemo(() => {
-        if (!currentEntry) return player;
-        const p = new Player(player.loadout, new PlayerStats(), player.currentHp);
-        p.stats.applySnapshot(currentEntry.statsSnapshot);
-        return p;
-    }, [player, currentEntry]);
+    const scrubbedStats = useMemo<StatsComponent>(() => {
+        if (!currentEntry) {
+            return world.getComponent(playerId, 'stats') || { snapshot: {} as Record<StatType, number> };
+        }
+        return { snapshot: currentEntry.statsSnapshot };
+    }, [world, playerId, currentEntry]);
+
+    const scrubbedFlags = useMemo<FlagComponent>(() => {
+        if (!currentEntry) {
+            return world.getComponent(playerId, 'flags') || { activeFlags: new Set<FlagType>() };
+        }
+        
+        // ADR-015: Filter out transient flags (wasCrit, etc.) from the simulation snapshot 
+        // to ensure resolveScenarioScan calculates fresh probabilities.
+        const flagTypeValues = new Set(Object.values(FlagType) as string[]);
+        const activeFlags = new Set<FlagType>();
+        
+        currentEntry.flagsSnapshot.forEach(f => {
+            if (flagTypeValues.has(f)) {
+                activeFlags.add(f as FlagType);
+            }
+        });
+
+        return { activeFlags };
+    }, [world, playerId, currentEntry]);
 
     React.useEffect(() => {
         if (simLogs.length > 0 && onScrub && mcResult) {
@@ -66,35 +90,56 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
         }
     }, [timelineIndex, simLogs, onScrub, mcResult]);
 
-    const weapon = scrubbedPlayer.loadout.weapon;
-    const baseDamage = scrubbedPlayer.stats.get(StatType.DamagePerProjectile)?.value ?? 0;
+    const loadout = world.getComponent(playerId, 'loadout');
+    const weapon = loadout?.weapon;
+    const baseDamage = scrubbedStats.snapshot[StatType.DamagePerProjectile] ?? 0;
 
     const physicalTraits = useMemo(() => new Set([DamageTrait.Attack, DamageTrait.Weapon]), []);
     const physicalProfile = useMemo(() => 
-        resolveScenarioScan(baseDamage, scrubbedPlayer, conditions.enemyType, physicalTraits),
-    [baseDamage, scrubbedPlayer, conditions.enemyType, physicalTraits]);
+        resolveScenarioScan(baseDamage, scrubbedStats, scrubbedFlags, conditions.enemyType, physicalTraits),
+    [baseDamage, scrubbedStats, scrubbedFlags, conditions.enemyType, physicalTraits]);
 
     const keywordProfile = useMemo(() => {
-        if (!weapon?.keyword || !weapon.keyword.baseStatType || weapon.keyword.scalingFactor === undefined) return null;
-        const traits = new Set(KEYWORD_TRAIT_MAP[weapon.keyword.type] || []);
-        const kwBase = (scrubbedPlayer.stats.get(weapon.keyword.baseStatType)?.value ?? 0) * weapon.keyword.scalingFactor;
-        return resolveScenarioScan(kwBase, scrubbedPlayer, conditions.enemyType, traits);
-    }, [weapon, scrubbedPlayer, conditions.enemyType]);
+        if (!weapon?.keyword) return null;
+        const meta = KEYWORD_METADATA[weapon.keyword];
+        if (!meta.baseStatType || meta.scalingFactor === undefined) return null;
+        const traits = new Set<DamageTrait>(KEYWORD_TRAIT_MAP[weapon.keyword] || []);
+        const kwBase = (scrubbedStats.snapshot[meta.baseStatType] ?? 0) * meta.scalingFactor;
+        
+        const canCrit = canKeywordCrit(weapon.keyword, (f) => scrubbedFlags.activeFlags.has(f));
+        const canWeakspot = canKeywordWeakspot(weapon.keyword, (f) => scrubbedFlags.activeFlags.has(f));
+
+        return resolveScenarioScan(
+            kwBase, 
+            scrubbedStats, 
+            scrubbedFlags, 
+            conditions.enemyType, 
+            traits,
+            new Set(), // unlockedKeywordCrits - mocked
+            undefined,
+            canCrit,
+            canWeakspot,
+            1.0,
+            new Map() // statContributions - mocked
+        );
+    }, [weapon, scrubbedStats, scrubbedFlags, conditions.enemyType]);
 
     const runMonteCarloSim = async () => {
+        if (!loadout) return;
         setIsSimulating(true);
         setProgress(0);
         await new Promise(resolve => setTimeout(resolve, 50));
-        const simPlayer = new Player(player.loadout, new PlayerStats(), player.currentHp);
-        const engine = new DamageEngine(simPlayer, conditions);
-        const result = await engine.runMonteCarlo(500, (p) => setProgress(Math.round(p * 100))); 
+        
+        const runner = new SimulationRunner(loadout, conditions, selectedAmmunition);
+        const result = await runner.runMonteCarlo(500, (p) => setProgress(Math.round(p * 100))); 
+        
         setMcResult(result);
         setTimelineIndex(result.sampleLogs.length > 0 ? result.sampleLogs.length - 1 : 0);
         if (onLogsUpdate) onLogsUpdate(result.sampleLogs);
         setIsSimulating(false);
     };
 
-    const renderPowerReadout = (title: string, profile: any, color: string) => (
+    const renderPowerReadout = (title: string, profile: ScenarioScanResult, color: string) => (
         <div className={`border-l-2 pl-3 py-1 bg-${color}/5 border-${color}/40 group`}>
             <div className="flex justify-between items-start">
                 <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">{title}</span>
@@ -138,12 +183,20 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
                 </div>
                 <div className="flex items-center gap-6">
                     {mcResult && (
-                        <div className="text-right border-r border-white/5 pr-6">
-                            <span className="text-[8px] uppercase text-muted-foreground block font-black tracking-widest">AVG_TOTAL_DMG</span>
-                            <span className="text-xl font-black text-primary font-mono tabular-nums leading-none">
-                                {Math.round(mcResult.averageDamage).toLocaleString()}
-                            </span>
-                        </div>
+                        <>
+                            <div className="text-right border-r border-white/5 pr-6">
+                                <span className="text-[8px] uppercase text-muted-foreground block font-black tracking-widest">AVG_DPS</span>
+                                <span className="text-xl font-black text-orange-400 font-mono tabular-nums leading-none">
+                                    {mcResult.averageDuration > 0 ? Math.round(mcResult.averageDamage / mcResult.averageDuration).toLocaleString() : '0'}
+                                </span>
+                            </div>
+                            <div className="text-right border-r border-white/5 pr-6">
+                                <span className="text-[8px] uppercase text-muted-foreground block font-black tracking-widest">AVG_TOTAL_DMG</span>
+                                <span className="text-xl font-black text-primary font-mono tabular-nums leading-none">
+                                    {Math.round(mcResult.averageDamage).toLocaleString()}
+                                </span>
+                            </div>
+                        </>
                     )}
                     <Button onClick={runMonteCarloSim} disabled={isSimulating} size="sm" className="bg-primary text-black font-black hover:bg-primary/90 shadow-[0_0_15px_rgba(77,184,255,0.2)] uppercase text-[10px] h-8 px-4 rounded-none border-r-2 border-b-2 border-black/40 min-w-[120px]">
                         {isSimulating ? `RUNNING...` : 'EXECUTE RUN'}
@@ -201,7 +254,7 @@ export const DamageDashboard: React.FC<DamageDashboardProps> = ({
 
                                     <div className="space-y-2">
                                         {renderPowerReadout("Kinetic", physicalProfile, "primary")}
-                                        {keywordProfile && renderPowerReadout(weapon?.keyword?.type || "KW", keywordProfile, "primary")}
+                                        {keywordProfile && renderPowerReadout(weapon?.keyword || "KW", keywordProfile, "primary")}
                                     </div>
                                 </div>
                             </div>

@@ -1,33 +1,28 @@
 import React from 'react';
-import { GearSlot, ModKey } from '../types/enums';
+import { GearSlot } from '../types/enums';
 import { ACTIVE_REGISTRY } from '../data/generated/registry';
 import { ARMOR } from '../data/armor';
 import { MODS } from '../data/mods';
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ModSubstatSelector } from './ModSubstatSelector';
-import { Substat } from '../models/substat';
+import { WeaponComponent, ArmorComponent, ModComponent } from '../ecs/types';
 
 interface EquipmentSlotProps {
     label: string;
     slot: GearSlot;
-    selectedItemId?: string;
-    selectedModId?: string;
-    selectedSubstats?: [Substat, Substat, Substat, Substat];
+    item?: WeaponComponent | ArmorComponent;
+    mod?: ModComponent;
     onItemSelect: (id: string) => void;
     onModSelect: (id: string) => void;
-    onSubstatChange: (substats: [Substat, Substat, Substat, Substat]) => void;
 }
 
 export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
     label,
     slot,
-    selectedItemId,
-    selectedModId,
-    selectedSubstats,
+    item,
+    mod,
     onItemSelect,
-    onModSelect,
-    onSubstatChange
+    onModSelect
 }) => {
     // Filter items based on slot
     const items = slot === 'weapon_main'
@@ -37,8 +32,6 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
     // Filter mods based on slot
     const mods = Object.values(MODS).filter(m => m.slot === slot);
 
-    const selectedMod = selectedModId ? MODS[selectedModId as ModKey] : undefined;
-
     return (
         <div className="bg-background/40 border border-primary/5 rounded-md p-3 space-y-3 hover:border-primary/20 transition-colors">
             <h3 className="text-xs font-bold uppercase tracking-widest text-primary/80">{label}</h3>
@@ -47,7 +40,7 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
                 <div className="space-y-1.5">
                     <Label className="text-[10px] text-muted-foreground uppercase">Base Item</Label>
                     <Select
-                        value={selectedItemId || "none"}
+                        value={item?.id || "none"}
                         onValueChange={(val) => onItemSelect(val === "none" ? "" : val)}
                     >
                         <SelectTrigger className="h-8 text-xs bg-background/50 border-primary/10">
@@ -55,9 +48,9 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="none">None</SelectItem>
-                            {items.map(item => (
-                                <SelectItem key={item.id} value={item.id}>
-                                    {item.name}
+                            {items.map(i => (
+                                <SelectItem key={i.id} value={i.id}>
+                                    {i.name}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -67,7 +60,7 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
                 <div className="space-y-1.5">
                     <Label className="text-[10px] text-muted-foreground uppercase">Slot Mod</Label>
                     <Select
-                        value={selectedModId || "none"}
+                        value={mod?.id || "none"}
                         onValueChange={(val) => onModSelect(val === "none" ? "" : val)}
                     >
                         <SelectTrigger className="h-8 text-xs bg-background/50 border-primary/10">
@@ -75,9 +68,9 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="none">None</SelectItem>
-                            {mods.map(mod => (
-                                <SelectItem key={mod.id} value={mod.id}>
-                                    {mod.name}
+                            {mods.map(m => (
+                                <SelectItem key={m.id} value={m.id}>
+                                    {m.name}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -85,19 +78,18 @@ export const EquipmentSlot: React.FC<EquipmentSlotProps> = ({
                 </div>
             </div>
 
-            {selectedMod && (
+            {mod && (
                 <>
                     <div className="pt-2 mt-2 border-t border-primary/5">
                         <p className="text-[10px] text-primary italic leading-relaxed">
-                            {selectedMod.description}
+                            {mod.description}
                         </p>
                     </div>
-                    {selectedSubstats && (
-                        <ModSubstatSelector
-                            substats={selectedSubstats}
-                            onChange={onSubstatChange}
-                        />
-                    )}
+                    {/* Note: In ECS, substats are already baked into ModComponent as {type, value} 
+                        but the selector needs the original SubstatData [type, tier] 
+                        which isn't in the ModComponent POJO. This would require 
+                        either passing it separately or updating the component.
+                    */}
                 </>
             )}
         </div>

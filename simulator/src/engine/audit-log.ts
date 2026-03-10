@@ -1,6 +1,4 @@
-import { StatType } from '../types/enums';
 import { TraceNode } from '../types/telemetry';
-import { Player } from '../models/player';
 import { useEffect, useState } from 'react';
 
 export type TelemetryListener = (entries: TraceNode[]) => void;
@@ -46,37 +44,6 @@ export class TelemetryManager {
     }
 
     /**
-     * Creates a TraceNode from a Traceable Stat.
-     */
-    public createStatTrace(player: Player, type: StatType): TraceNode {
-        const stat = player.stats.get(type);
-        if (!stat) {
-            return {
-                id: `stat:${type}`,
-                label: type,
-                finalValue: 0,
-                operation: 'identity',
-                contributors: [],
-                timestamp: Date.now()
-            };
-        }
-
-        return {
-            id: `stat:${type}`,
-            label: `Stat: ${type}`,
-            finalValue: stat.value,
-            operation: 'sum',
-            contributors: stat.contributions.map(c => ({
-                label: c.source,
-                value: c.value,
-                type: 'stat',
-                isPercentage: type.toString().includes('Percent')
-            })),
-            timestamp: Date.now()
-        };
-    }
-
-    /**
      * Legacy shim for AuditLog compatibility.
      */
     log(category: string, label: string, value: string | number | boolean, source?: string) {
@@ -88,6 +55,10 @@ export class TelemetryManager {
             contributors: source ? [{ label: source, value: 0, type: 'constant' }] : [],
             timestamp: Date.now()
         });
+    }
+
+    warn(category: string, message: string) {
+        this.log('WARNING', category, message);
     }
 }
 

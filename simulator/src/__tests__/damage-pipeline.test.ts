@@ -1,68 +1,82 @@
-import { Player, PlayerStats } from '../models/player';
-import { Loadout, Weapon, WeaponStats } from '../models/equipment';
-import { EnemyType, Rarity, WeaponType, ModKey, EncounterTopology, DamageTrait } from '../types/enums';
+import { World } from '../ecs/world';
+import { StatType, EnemyType, ModKey, DamageTrait, AmmunitionType, WeaponKey } from '../types/enums';
 import { EncounterConditions } from '../types/common';
-import { StatAggregator } from '../engine/stat-aggregator';
-import { Burn } from '../models/keyword';
-import { DEFAULT_SUBSTATS, createModInstance } from '../data/mods';
+import { createWeaponComponent, createModComponent } from '../ecs/factories';
+import { runStatAggregation } from '../ecs/systems/stat-aggregator-system';
 import { resolveScenarioScan } from '../engine/resolver';
+import { StatsComponent, FlagComponent, LoadoutComponent } from '../ecs/types';
+import { DEFAULT_SUBSTATS } from '../data/mods';
 
-describe('Unified Resolver Build Logic Verification', () => {
-    let player: Player;
-    let stats: PlayerStats;
-    let loadout: Loadout;
+describe('ECS Unified Resolver Build Logic Verification', () => {
+    let world: World;
+    let playerId: any;
 
     beforeEach(() => {
-        stats = new PlayerStats();
-        loadout = new Loadout();
-        player = new Player(loadout, stats, 100);
+        world = new World();
+        playerId = world.createEntity('player');
+        
+        const stats: StatsComponent = { snapshot: {} as Record<StatType, number> };
+        const flags: FlagComponent = { activeFlags: new Set() };
+        
+        world.addComponent(playerId, 'stats', stats);
+        world.addComponent(playerId, 'flags', flags);
+        world.addComponent(playerId, 'resources', {
+            sanity: 100,
+            maxSanity: 100,
+            deviantPower: 100,
+            maxDeviantPower: 100
+        });
+        world.addComponent(playerId, 'status', { activeBuffs: [], activeDoTs: [] });
     });
 
     test('Momentum Up dynamic logic affects resolver output', () => {
-        const pistolStats = new WeaponStats();
-        pistolStats.damagePerProjectile.reset(100, 'Test');
-
-        const momentumUp = createModInstance(ModKey.MomentumUp, DEFAULT_SUBSTATS);
-        loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, momentumUp, WeaponType.Pistol, new Burn(), pistolStats, []);
+        const momentumUp = createModComponent(ModKey.MomentumUp, DEFAULT_SUBSTATS);
+        const loadout: LoadoutComponent = {
+            weapon: createWeaponComponent(WeaponKey.DE50Jaws, 1, 5, 0, undefined, 0, undefined, 0, momentumUp)
+        };
+        world.addComponent(playerId, 'loadout', loadout);
 
         const conditions = new EncounterConditions();
         conditions.enemyType = EnemyType.Normal;
-        conditions.weakspotHitRate = 0.5;
-        conditions.topology = EncounterTopology.SingleTarget;
-
+        
+        const statsComp = world.getComponent(playerId, 'stats')!;
+        const flagsComp = world.getComponent(playerId, 'flags')!;
         const traits = new Set([DamageTrait.Attack, DamageTrait.Weapon]);
 
         // 1. First half of mag (Should have +10% Fire Rate, 0% Weapon DMG)
-        StatAggregator.aggregate(player, conditions, 1.0, true);
-        const res1 = resolveScenarioScan(100, player, conditions.enemyType, traits);
-        expect(res1.noCritNoWs).toBe(100);
+        runStatAggregation(world, conditions, 1.0, AmmunitionType.Copper);
+        const baseDmg1 = statsComp.snapshot[StatType.DamagePerProjectile] || 0;
+        const res1 = resolveScenarioScan(baseDmg1, statsComp, flagsComp, conditions.enemyType, traits);
+        // We expect it to be just the base damage since we didn't add any other buffs
+        expect(res1.noCritNoWs).toBe(baseDmg1);
 
         // 2. Second half of mag (Should have 0% Fire Rate, +30% Weapon DMG)
-        StatAggregator.aggregate(player, conditions, 0.2, true);
-        const res2 = resolveScenarioScan(100, player, conditions.enemyType, traits);
-        expect(res2.noCritNoWs).toBe(130);
+        runStatAggregation(world, conditions, 0.2, AmmunitionType.Copper);
+        const res2 = resolveScenarioScan(baseDmg1, statsComp, flagsComp, conditions.enemyType, traits);
+        // +30% Weapon Damage from Momentum Up second half
+        expect(res2.noCritNoWs).toBeCloseTo(baseDmg1 * 1.3);
     });
 
     test('Fateful Strike disables weakspots correctly in Resolver', () => {
-        const pistolStats = new WeaponStats();
-        pistolStats.damagePerProjectile.reset(100, 'Test');
-        pistolStats.weakspotDamagePercent.reset(50, 'Test');
-
-        const fateful = createModInstance(ModKey.FatefulStrike, DEFAULT_SUBSTATS);
-        loadout.weapon = new Weapon('w', 'W', Rarity.Common, 1, 1, 0, fateful, WeaponType.Pistol, new Burn(), pistolStats, []);
+        const fateful = createModComponent(ModKey.FatefulStrike, DEFAULT_SUBSTATS);
+        const loadout: LoadoutComponent = {
+            weapon: createWeaponComponent(WeaponKey.DE50Jaws, 1, 5, 0, undefined, 0, undefined, 0, fateful)
+        };
+        world.addComponent(playerId, 'loadout', loadout);
 
         const conditions = new EncounterConditions();
         conditions.enemyType = EnemyType.Normal;
-        conditions.weakspotHitRate = 0.5;
-        conditions.topology = EncounterTopology.SingleTarget;
-
+        
+        const statsComp = world.getComponent(playerId, 'stats')!;
+        const flagsComp = world.getComponent(playerId, 'flags')!;
         const traits = new Set([DamageTrait.Attack, DamageTrait.Weapon]);
 
-        StatAggregator.aggregate(player, conditions, 1.0, true);
+        runStatAggregation(world, conditions, 1.0, AmmunitionType.Copper);
+        const baseDmg = statsComp.snapshot[StatType.DamagePerProjectile] || 0;
 
-        const result = resolveScenarioScan(100, player, conditions.enemyType, traits);
+        const result = resolveScenarioScan(baseDmg, statsComp, flagsComp, conditions.enemyType, traits);
 
-        // Fateful Strike disables weakspots, so result should be 100 even with 100% hit rate scenario
-        expect(result.noCritWs).toBe(100);
+        // Fateful Strike disables weakspots, so result should be baseDmg even in WS scenario
+        expect(result.noCritWs).toBe(baseDmg);
     });
 });

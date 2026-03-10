@@ -13,13 +13,17 @@
  * See: simulator/docs/designs/ADR-003-trigger-effect-execution-model.md
  */
 
-import { EffectDef, DynEffectType, EffectTarget, EffectTargetType } from '../types/trigger-types';
-import { DoTInstance, BuffInstance } from '../types/status-types';
-import { DamageTrait, StatType, EnemyType } from '../types/enums';
-import { CooldownKey, dotId, buffId } from '../types/keys';
-import { DoTDefinition, BuffDefinition } from '../types/status-types';
-import { resolve, buildResolutionContext } from './resolver';
-import { UNIVERSAL_BUCKETS } from './bucket-registry';
+import { EffectDef, DynEffectType, EffectTarget, EffectTargetType } from '../../types/trigger-types';
+import { ActiveDoT, ActiveBuff } from '../../types/status-types';
+import { DamageTrait, StatType, EnemyType, KeywordType, FlagType } from '../../types/enums';
+import { CooldownKey, dotId, buffId } from '../../types/keys';
+import { DoTDefinition, BuffDefinition } from '../../types/status-types';
+import { resolve, buildResolutionContext, evaluateRolls, TRAIT_TO_KEYWORD } from '../../engine/resolver';
+import { UNIVERSAL_BUCKETS, ROLL_REGISTRY } from '../../engine/bucket-registry';
+import { RngService } from '../../engine/rng';
+import { ContextFlag } from '../../types/resolution';
+import { getKeywordMetadata } from '../../data/keywords';
+import { StatContribution } from '../../types/telemetry';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Context
@@ -32,20 +36,26 @@ import { UNIVERSAL_BUCKETS } from './bucket-registry';
 export interface EffectExecutionContext {
     /** Current player stats snapshot (for damage scaling + stat overrides). */
     readonly statValues: ReadonlyMap<StatType, number>;
+    readonly statContributions: ReadonlyMap<StatType, StatContribution[]>;
     readonly encounterEnemyType: EnemyType;
     readonly currentTimeSeconds: number;
     readonly cooldowns: Map<CooldownKey, number>;
     /** Target's active DoTs (mutated by ApplyDoT effects). */
-    readonly targetDoTs: DoTInstance[];
+    readonly targetDoTs: ActiveDoT[];
     /** Target's active Buffs (mutated by ApplyBuff effects). */
-    readonly targetBuffs: BuffInstance[];
+    readonly targetBuffs: ActiveBuff[];
     /** Player's active Buffs (mutated by ApplyBuff-to-Self effects). */
-    readonly playerBuffs: BuffInstance[];
+    readonly playerBuffs: ActiveBuff[];
     readonly dotRegistry: (id: string) => DoTDefinition | undefined;
     readonly buffRegistry: (id: string) => BuffDefinition | undefined;
     /** Record secondary damage event for logs + accumulated total. */
     readonly recordDamage: (amount: number, label: string, traits: readonly DamageTrait[]) => void;
     readonly logEvent: (event: string, description: string) => void;
+    
+    /** ADR-013: Simulation support for keyword rolls. */
+    readonly rng: RngService;
+    readonly playerFlags: Map<ContextFlag, boolean>;
+    readonly unlockedKeywordCrits: ReadonlySet<KeywordType>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +67,7 @@ export interface EffectExecutionContext {
  * Only Self and PrimaryTarget are semantically distinct in the current single-target sim.
  * NearbyTargets resolves to the same primary target list until multi-target is implemented.
  */
-function resolveDoTList(target: EffectTarget, ctx: EffectExecutionContext): DoTInstance[] {
+function resolveDoTList(target: EffectTarget, ctx: EffectExecutionContext): ActiveDoT[] {
     // In current single-target simulation, all targets resolve to the primary target's state
     switch (target.type) {
         case EffectTargetType.Self:          return ctx.targetDoTs; // Player has no DoTs to receive (placeholder)
@@ -66,7 +76,7 @@ function resolveDoTList(target: EffectTarget, ctx: EffectExecutionContext): DoTI
     }
 }
 
-function resolveBuffList(target: EffectTarget, ctx: EffectExecutionContext): BuffInstance[] {
+function resolveBuffList(target: EffectTarget, ctx: EffectExecutionContext): ActiveBuff[] {
     switch (target.type) {
         case EffectTargetType.Self:          return ctx.playerBuffs;
         case EffectTargetType.PrimaryTarget: return ctx.targetBuffs;
@@ -89,16 +99,48 @@ export function executeEffectDef(effect: EffectDef, ctx: EffectExecutionContext)
             }
 
             const baseStatValue = ctx.statValues.get(effect.scalingStat) ?? 0;
-            const baseDamage = baseStatValue * effect.scalingFactor;
 
-            // Build ResolutionContext and pass through UNIVERSAL_BUCKETS
+            // ADR-013: Derive keyword restrictions for secondary damage
+            let canCrit = false;
+            let canWeakspot = false;
+            for (const trait of effect.traits) {
+                const kwType = TRAIT_TO_KEYWORD[trait];
+                if (kwType) {
+                    const kw = getKeywordMetadata(kwType);
+                    canCrit = kw.canCrit || ctx.unlockedKeywordCrits.has(kwType);
+                    canWeakspot = kw.canWeakspot;
+                    break;
+                }
+            }
+
+            // Build initial flags from player state
+            const initialFlags = new Map<ContextFlag, boolean>();
+            ctx.playerFlags.forEach((v, k) => initialFlags.set(k, v));
+
+            // Build ResolutionContext
             const resCtx = buildResolutionContext(
                 new Set(effect.traits),
                 ctx.encounterEnemyType,
                 ctx.statValues,
-                new Map([['wasCrit', false], ['wasWeakspot', false]]) // Secondary damage defaults
+                initialFlags,
+                ctx.unlockedKeywordCrits,
+                ctx.statContributions
             );
-            const { finalDamage } = resolve(baseDamage, UNIVERSAL_BUCKETS, resCtx);
+
+            // Execute rolls if allowed
+            evaluateRolls(ROLL_REGISTRY, resCtx, ctx.rng);
+
+            // Apply restrictions (same logic as resolveScenarioScan)
+            if (!canCrit) {
+                resCtx.flags.set('wasCrit', false);
+                resCtx.flags.set('wasBurnCrit', false);
+            }
+            if (!canWeakspot) {
+                resCtx.flags.set('wasWeakspot', false);
+                resCtx.flags.set(FlagType.CannotDealWeakspotDamage, true);
+            }
+
+            const { finalDamage } = resolve(baseStatValue, UNIVERSAL_BUCKETS, resCtx, false, effect.scalingFactor);
 
             ctx.recordDamage(finalDamage, effect.label, effect.traits);
 
@@ -125,7 +167,7 @@ export function executeEffectDef(effect: EffectDef, ctx: EffectExecutionContext)
                 durationSeconds = def.baseDurationSeconds * durationMult;
             }
 
-            applyDoTInstance(def.id, maxStacks, durationSeconds, def.baseTickIntervalSeconds, ctx.currentTimeSeconds, resolveDoTList(effect.target, ctx), ctx);
+            applyActiveDoT(def.id, maxStacks, durationSeconds, def.baseTickIntervalSeconds, ctx.currentTimeSeconds, resolveDoTList(effect.target, ctx), ctx);
             ctx.logEvent('DoT Applied', def.name);
             break;
         }
@@ -134,7 +176,7 @@ export function executeEffectDef(effect: EffectDef, ctx: EffectExecutionContext)
             const def = ctx.buffRegistry(effect.buffId);
             if (!def) return;
 
-            applyBuffInstance(def.id, def.baseMaxStacks, def.baseDurationSeconds, resolveBuffList(effect.target, ctx), ctx);
+            applyActiveBuff(def.id, def.baseMaxStacks, def.baseDurationSeconds, resolveBuffList(effect.target, ctx), ctx);
             ctx.logEvent('Buff Applied', def.name);
             break;
         }
@@ -157,13 +199,13 @@ export function executeEffectDef(effect: EffectDef, ctx: EffectExecutionContext)
 /**
  * Applies or stacks a DoT instance on the target's active DoTs list.
  */
-function applyDoTInstance(
+function applyActiveDoT(
     definitionId: string,
     maxStacks: number,
     durationSeconds: number,
     tickIntervalSeconds: number,
     currentTime: number,
-    activeDoTs: DoTInstance[],
+    activeDoTs: ActiveDoT[],
     ctx: EffectExecutionContext,
 ): void {
     const existing = activeDoTs.find(d => d.definitionId === definitionId);
@@ -173,7 +215,7 @@ function applyDoTInstance(
         existing.remainingDurationSeconds = existing.durationSeconds;
         ctx.logEvent('DoT Stack', `${definitionId} (${existing.currentStacks}×)`);
     } else {
-        const instance: DoTInstance = {
+        const instance: ActiveDoT = {
             definitionId: dotId(definitionId),
             currentStacks: 1,
             remainingDurationSeconds: durationSeconds,
@@ -188,11 +230,11 @@ function applyDoTInstance(
 /**
  * Applies or stacks a Buff instance.
  */
-function applyBuffInstance(
+function applyActiveBuff(
     definitionId: string,
     maxStacks: number,
     durationSeconds: number,
-    activeBuffs: BuffInstance[],
+    activeBuffs: ActiveBuff[],
     ctx: EffectExecutionContext,
 ): void {
     const existing = activeBuffs.find(b => b.definitionId === definitionId);
@@ -230,11 +272,17 @@ export function runEffectExecution(effects: readonly EffectDef[], ctx: EffectExe
 export interface StatusTickContext {
     readonly currentTimeSeconds: number;
     readonly statValues: ReadonlyMap<StatType, number>;
+    readonly statContributions: ReadonlyMap<StatType, StatContribution[]>;
     readonly encounterEnemyType: EnemyType;
-    readonly recordDamage: (amount: number, label: string) => void;
-    readonly logEvent: (event: string, description: string) => void;
+    readonly recordDamage: (amount: number, label: string, time: number) => void;
+    readonly logEvent: (event: string, description: string, time: number) => void;
     readonly dotRegistry: (id: string) => DoTDefinition | undefined;
     readonly buffRegistry: (id: string) => BuffDefinition | undefined;
+
+    /** ADR-013: Simulation support for keyword rolls during ticks. */
+    readonly rng: RngService;
+    readonly playerFlags: Map<ContextFlag, boolean>;
+    readonly unlockedKeywordCrits: ReadonlySet<KeywordType>;
 }
 
 /**
@@ -245,7 +293,7 @@ export interface StatusTickContext {
  * DamageProcessor(LegacyResolutionStrategy) bug from the old ActiveDoT class.
  */
 export function tickDoTs(
-    activeDoTs: DoTInstance[],
+    activeDoTs: ActiveDoT[],
     dt: number,
     ctx: StatusTickContext,
 ): void {
@@ -266,23 +314,65 @@ export function tickDoTs(
 
                 // Compute tick damage through UNIVERSAL_BUCKETS
                 const baseStatValue = ctx.statValues.get(def.scalingStat) ?? 0;
-                const baseDamage = baseStatValue * def.scalingFactor;
+
+                // ADR-013: Derive keyword restrictions for DoT ticks
+                let canCrit = false;
+                let canWeakspot = false;
+                for (const trait of def.traits) {
+                    const kwType = TRAIT_TO_KEYWORD[trait];
+                    if (kwType) {
+                        const kw = getKeywordMetadata(kwType);
+                        canCrit = kw.canCrit || ctx.unlockedKeywordCrits.has(kwType);
+                        canWeakspot = kw.canWeakspot;
+                        break;
+                    }
+                }
+
+                // Build initial flags from player state
+                const initialFlags = new Map<ContextFlag, boolean>();
+                ctx.playerFlags.forEach((v, k) => initialFlags.set(k, v));
+
+                // Build ResolutionContext
                 const resCtx = buildResolutionContext(
                     new Set(def.traits),
                     ctx.encounterEnemyType,
                     ctx.statValues,
-                    new Map([['wasCrit', false], ['wasWeakspot', false]])
+                    initialFlags,
+                    ctx.unlockedKeywordCrits,
+                    ctx.statContributions
                 );
-                const { finalDamage } = resolve(baseDamage, UNIVERSAL_BUCKETS, resCtx);
+
+                // Execute rolls if allowed
+                // For DoTs, we only roll if it's a keyword that can crit/weakspot
+                if (canCrit || canWeakspot) {
+                    evaluateRolls(ROLL_REGISTRY, resCtx, ctx.rng);
+                    
+                    // Apply restrictions (same logic as executeEffectDef)
+                    if (!canCrit) {
+                        resCtx.flags.set('wasCrit', false);
+                        resCtx.flags.set('wasBurnCrit', false);
+                    }
+                    if (!canWeakspot) {
+                        resCtx.flags.set('wasWeakspot', false);
+                        resCtx.flags.set(FlagType.CannotDealWeakspotDamage, true);
+                    }
+                } else {
+                    resCtx.flags.set('wasCrit', false);
+                    resCtx.flags.set('wasWeakspot', false);
+                    resCtx.flags.set('wasBurnCrit', false);
+                    resCtx.flags.set(FlagType.CannotDealWeakspotDamage, true);
+                }
+
+                const { finalDamage } = resolve(baseStatValue, UNIVERSAL_BUCKETS, resCtx, false, def.scalingFactor);
                 const totalDamage = finalDamage * dot.currentStacks;
 
-                ctx.recordDamage(totalDamage, `${def.name} Tick`);
+                ctx.recordDamage(totalDamage, `${def.name} Tick`, ctx.currentTimeSeconds);
             }
         }
 
         if (dot.remainingDurationSeconds <= 0) {
             const def = ctx.dotRegistry(dot.definitionId);
-            ctx.logEvent('DoT Expired', def?.name ?? dot.definitionId);
+            ctx.logEvent('DoT Expired', def?.name ?? dot.definitionId, ctx.currentTimeSeconds);
             activeDoTs.splice(i, 1);
         }
     }
@@ -292,7 +382,7 @@ export function tickDoTs(
  * Advances all Buffs by dt seconds. Removes expired Buffs.
  */
 export function tickBuffs(
-    activeBuffs: BuffInstance[],
+    activeBuffs: ActiveBuff[],
     dt: number,
     ctx: StatusTickContext,
 ): void {
@@ -302,7 +392,7 @@ export function tickBuffs(
 
         if (buff.remainingDurationSeconds <= 0) {
             const def = ctx.buffRegistry(buff.definitionId);
-            ctx.logEvent('Buff Expired', def?.name ?? buff.definitionId);
+            ctx.logEvent('Buff Expired', def?.name ?? buff.definitionId, ctx.currentTimeSeconds);
             activeBuffs.splice(i, 1);
         }
     }

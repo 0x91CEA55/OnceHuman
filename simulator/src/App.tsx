@@ -3,18 +3,17 @@ import { CalculationConsole } from './components/CalculationConsole'
 import { BuildBreakdown } from './components/BuildBreakdown'
 import { DamageDashboard } from './components/DamageDashboard'
 import { EncounterConditionsPanel } from './components/EncounterConditionsPanel'
-import { createWeapon } from './data/weapons'
-import { createArmor, ARMOR } from './data/armor'
-import { createModInstance, DEFAULT_SUBSTATS, MODS } from './data/mods'
-import { Player, PlayerStats } from './models/player'
-import { Loadout } from './models/equipment'
-import { StatAggregator } from './engine/stat-aggregator'
+import { createWeaponComponent, createArmorComponent, createModComponent } from './ecs/factories'
+import { World } from './ecs/world'
+import { runStatAggregation } from './ecs/systems/stat-aggregator-system'
+import { StatsComponent, FlagComponent, LoadoutComponent, ResourceComponent } from './ecs/types'
+import { SubstatData } from './data/substats'
+import { SimulationLogEntry } from './engine/simulation-runner'
+import { ARMOR } from './data/armor'
+import { DEFAULT_SUBSTATS, MODS } from './data/mods'
 import { telemetry, useTelemetry } from './engine/audit-log'
 import { StatType, ArmorSlot, WeaponSlot, WeaponKey, ArmorKey, ModKey, GearSlot, CalibrationStyle, AmmunitionType } from './types/enums'
-import { EncounterConditions } from './types/common'
-import { Substat } from './models/substat'
-import { BaseEffect } from './models/effect'
-import { SimulationLogEntry } from './engine/damage-engine'
+import { EncounterConditions, IEffect } from './types/common'
 import { ACTIVE_REGISTRY } from './data/generated/registry'
 
 // Diegetic Components
@@ -36,7 +35,7 @@ function App() {
   const telemetryEntries = useTelemetry();
   const [selectedItemIds, setSelectedItemIds] = useState<Record<string, string>>({});
   const [selectedModIds, setSelectedModIds] = useState<Record<string, string>>({});
-  const [selectedSubstats, setSelectedSubstats] = useState<Record<string, [Substat, Substat, Substat, Substat]>>({});
+  const [selectedSubstats, setSelectedSubstats] = useState<Record<string, [SubstatData, SubstatData, SubstatData, SubstatData]>>({});
   const [starLevels, setStarLevels] = useState<Record<string, number>>({ [WeaponSlot.Main]: 6 });
   const [tierLevels, setTierLevels] = useState<Record<string, number>>({ [WeaponSlot.Main]: 5 });
   const [selectedAmmunition, setSelectedAmmunition] = useState<AmmunitionType>(AmmunitionType.TungstenAP);
@@ -53,36 +52,38 @@ function App() {
 
   const [conditions, setConditions] = useState<EncounterConditions>(new EncounterConditions());
 
-  const loadout = useMemo(() => {
-    const l = new Loadout();
+  const loadoutComponent = useMemo(() => {
+    const l: LoadoutComponent = {};
     const wId = selectedItemIds[WeaponSlot.Main] as WeaponKey;
     if (wId && ACTIVE_REGISTRY[wId]) {
       const modId = selectedModIds[WeaponSlot.Main] as ModKey;
-      const substats = selectedSubstats[WeaponSlot.Main] || DEFAULT_SUBSTATS;
+      const substats = (selectedSubstats[WeaponSlot.Main] || DEFAULT_SUBSTATS) as [SubstatData, SubstatData, SubstatData, SubstatData];
       const star = starLevels[WeaponSlot.Main] || 1;
       const tier = tierLevels[WeaponSlot.Main] || 5;
-      const mod = (modId && MODS[modId]) ? createModInstance(modId, substats) : undefined;
+      const mod = (modId && MODS[modId]) ? createModComponent(modId, substats) : undefined;
       
-      const weapon = createWeapon(wId, star, tier, calibrationLevel, mod);
-
-      // Apply Calibration Matrix
-      weapon.calibrationMatrix.style = calibrationStyle;
-      weapon.calibrationMatrix.weaponDamageBonus = weaponDamageBonus;
-      weapon.calibrationMatrix.secondaryStatType = secondaryStatType;
-      weapon.calibrationMatrix.secondaryStatValue = secondaryStatValue;
-
-      l.weapon = weapon;
+      l.weapon = createWeaponComponent(
+        wId, 
+        star, 
+        tier, 
+        calibrationLevel, 
+        calibrationStyle, 
+        weaponDamageBonus, 
+        secondaryStatType, 
+        secondaryStatValue,
+        mod
+      );
     }
 
     for (const slot of Object.values(ArmorSlot)) {
       const itemId = selectedItemIds[slot] as ArmorKey;
       if (itemId && ARMOR[itemId]) {
         const modId = selectedModIds[slot] as ModKey;
-        const substats = selectedSubstats[slot] || DEFAULT_SUBSTATS;
+        const substats = (selectedSubstats[slot] || DEFAULT_SUBSTATS) as [SubstatData, SubstatData, SubstatData, SubstatData];
         const star = starLevels[slot] || 1;
         const tier = tierLevels[slot] || 5;
-        const mod = (modId && MODS[modId]) ? createModInstance(modId, substats) : undefined;
-        const armor = createArmor(itemId, star, tier, 0, mod);
+        const mod = (modId && MODS[modId]) ? createModComponent(modId, substats) : undefined;
+        const armor = createArmorComponent(itemId, star, tier, 0, mod);
         if (slot === ArmorSlot.Helmet) l.helmet = armor;
         else if (slot === ArmorSlot.Mask) l.mask = armor;
         else if (slot === ArmorSlot.Top) l.top = armor;
@@ -94,61 +95,55 @@ function App() {
     return l;
   }, [selectedItemIds, selectedModIds, selectedSubstats, starLevels, tierLevels, calibrationLevel, calibrationStyle, weaponDamageBonus, secondaryStatType, secondaryStatValue]);
 
-  const loadoutNames = useMemo(() => {
-    const names: Record<string, string> = {};
-    if (loadout.weapon) names[WeaponSlot.Main] = loadout.weapon.name;
-    if (loadout.helmet) names[ArmorSlot.Helmet] = loadout.helmet.name;
-    if (loadout.mask) names[ArmorSlot.Mask] = loadout.mask.name;
-    if (loadout.top) names[ArmorSlot.Top] = loadout.top.name;
-    if (loadout.gloves) names[ArmorSlot.Gloves] = loadout.gloves.name;
-    if (loadout.pants) names[ArmorSlot.Pants] = loadout.pants.name;
-    if (loadout.boots) names[ArmorSlot.Boots] = loadout.boots.name;
-    return names;
-  }, [loadout]);
-
-  const loadoutRarities = useMemo(() => {
-    const rarities: Record<string, any> = {};
-    if (loadout.weapon) rarities[WeaponSlot.Main] = loadout.weapon.rarity;
-    if (loadout.helmet) rarities[ArmorSlot.Helmet] = loadout.helmet.rarity;
-    if (loadout.mask) rarities[ArmorSlot.Mask] = loadout.mask.rarity;
-    if (loadout.top) rarities[ArmorSlot.Top] = loadout.top.rarity;
-    if (loadout.gloves) rarities[ArmorSlot.Gloves] = loadout.gloves.rarity;
-    if (loadout.pants) rarities[ArmorSlot.Pants] = loadout.pants.rarity;
-    if (loadout.boots) rarities[ArmorSlot.Boots] = loadout.boots.rarity;
-    return rarities;
-  }, [loadout]);
-
   const handleItemSelect = (slot: string, id: string) => setSelectedItemIds(prev => ({ ...prev, [slot]: id }));
   const handleModSelect = (slot: string, id: string) => {
     setSelectedModIds(prev => ({ ...prev, [slot]: id }));
-    if (id) setSelectedSubstats(prev => ({ ...prev, [slot]: DEFAULT_SUBSTATS }));
+    if (id) setSelectedSubstats(prev => ({ ...prev, [slot]: DEFAULT_SUBSTATS as [SubstatData, SubstatData, SubstatData, SubstatData] }));
   };
-  const handleSubstatChange = (slot: string, subs: [Substat, Substat, Substat, Substat]) => setSelectedSubstats(prev => ({ ...prev, [slot]: subs }));
+  const handleSubstatChange = (slot: string, subs: [SubstatData, SubstatData, SubstatData, SubstatData]) => setSelectedSubstats(prev => ({ ...prev, [slot]: subs }));
 
   const [scrubbedStats, setScrubbedStats] = useState<Record<StatType, number> | null>(null);
   const [scrubbedBuffs, setScrubbedBuffs] = useState<{ name: string, stacks: number }[]>([]);
-  const [scrubbedEffects, setScrubbedEffects] = useState<BaseEffect[] | null>(null);
+  const [scrubbedEffects, setScrubbedEffects] = useState<IEffect[] | null>(null);
   const [scrubbedIndex, setScrubbedIndex] = useState(0);
 
-  const handleScrub = useCallback((stats: Record<StatType, number> | null, buffs: { name: string, stacks: number }[], effects?: BaseEffect[], index?: number) => {
+  const handleScrub = useCallback((stats: Record<StatType, number> | null, buffs: { name: string, stacks: number }[], effects?: IEffect[], index?: number) => {
     setScrubbedStats(stats);
     setScrubbedBuffs(buffs);
     if (effects) setScrubbedEffects(effects);
     if (index !== undefined) setScrubbedIndex(index);
   }, []);
 
-  const { player, baseStatsSnapshot } = useMemo(() => {
-    const p = new Player(loadout, new PlayerStats(), 100);
-    p.selectedAmmunition = selectedAmmunition;
+  const worldInfo = useMemo(() => {
+    const w = new World();
+    const pid = w.createEntity('player');
+    
+    const stats: StatsComponent = { snapshot: {} as Record<StatType, number> };
+    const flags: FlagComponent = { activeFlags: new Set() };
+    const resources: ResourceComponent = {
+        sanity: conditions.playerSanity,
+        maxSanity: conditions.maxPlayerSanity,
+        deviantPower: conditions.playerDeviantPower,
+        maxDeviantPower: conditions.maxPlayerDeviantPower
+    };
+
+    w.addComponent(pid, 'loadout', loadoutComponent);
+    w.addComponent(pid, 'stats', stats);
+    w.addComponent(pid, 'flags', flags);
+    w.addComponent(pid, 'resources', resources);
+    w.addComponent(pid, 'status', { activeBuffs: [], activeDoTs: [] });
 
     telemetry.clear();
-    StatAggregator.aggregate(p, conditions, 1.0, true, true);
-    const baseSnapshot = p.stats.snapshot();
-    StatAggregator.aggregate(p, conditions, 1.0, false, false);
-    return { player: p, baseStatsSnapshot: baseSnapshot };
-  }, [loadout, conditions, selectedAmmunition]);
+    const activeEffects: IEffect[] = [];
+    runStatAggregation(w, conditions, 1.0, selectedAmmunition, activeEffects);
+    const baseSnapshot = { ...stats.snapshot };
+    
+    return { world: w, playerId: pid, baseStatsSnapshot: baseSnapshot, activeEffects };
+  }, [loadoutComponent, conditions, selectedAmmunition]);
 
-  const currentStats = scrubbedStats || player.stats.snapshot();
+  const { world, playerId, baseStatsSnapshot, activeEffects: memoActiveEffects } = worldInfo;
+  const currentStats = scrubbedStats || world.getComponent(playerId, 'stats')!.snapshot;
+  const currentEffects = scrubbedEffects || memoActiveEffects;
 
   // Initial weapon selection
   useEffect(() => {
@@ -191,8 +186,7 @@ function App() {
               <GearHub 
                 activeSlot={activeSlot} 
                 onSlotSelect={setActiveSlot} 
-                loadoutNames={loadoutNames} 
-                loadoutRarities={loadoutRarities} 
+                loadout={loadoutComponent} 
               />
             </DiegeticFrame>
           </div>
@@ -201,7 +195,12 @@ function App() {
           <div className="xl:col-span-5 space-y-6">
             <DynamicStatDisplay baseStats={baseStatsSnapshot} currentStats={currentStats} />
 
-            <StaticDamagePreview player={player} conditions={conditions} />
+            <StaticDamagePreview 
+              stats={world.getComponent(playerId, 'stats')!} 
+              flags={world.getComponent(playerId, 'flags')!} 
+              loadout={loadoutComponent}
+              conditions={conditions} 
+            />
 
             <DiegeticFrame title="03. Tuning Matrix" subTitle={`${activeSlot.replace('_', ' ').toUpperCase()} CONFIG`}>
               <TechnicalSchematic
@@ -244,7 +243,7 @@ function App() {
                   </div>
                 )}
                 <ScrollArea className="h-[250px] pr-4 font-mono">
-                  <BuildBreakdown effects={scrubbedEffects || player.activeEffects} />
+                  <BuildBreakdown effects={currentEffects} />
                 </ScrollArea>
               </div>
             </DiegeticFrame>
@@ -263,7 +262,14 @@ function App() {
                 </div>
                 <CardContent className="pt-6">
                   <TabsContent value="dashboard" className="mt-0 outline-none">
-                    <DamageDashboard player={player} conditions={conditions} onScrub={handleScrub} onLogsUpdate={setSimLogs} />
+                    <DamageDashboard 
+                      world={world} 
+                      playerId={playerId} 
+                      conditions={conditions} 
+                      selectedAmmunition={selectedAmmunition}
+                      onScrub={handleScrub} 
+                      onLogsUpdate={setSimLogs} 
+                    />
                   </TabsContent>
                   <TabsContent value="logs" className="mt-0 outline-none">
                     <div className="bg-black/40 rounded border border-white/5 overflow-hidden">

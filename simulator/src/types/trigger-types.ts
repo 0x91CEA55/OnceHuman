@@ -21,6 +21,8 @@ export enum TriggerType {
     OnReload      = 'on_reload',
     /** Counter-gated: fires every N hits. Replaces EveryNShotsTrigger class. */
     EveryNHits    = 'every_n_hits',
+    EveryNCrits   = 'every_n_crits',
+    EveryNWeakspotHits = 'every_n_weakspot_hits',
 }
 
 export enum TriggerConditionType {
@@ -70,6 +72,16 @@ export type TriggerDef =
         readonly n: number;
         readonly critsCountDouble: boolean;
         /** Typed key scoped to this trigger; stored in engine counters map. */
+        readonly counterKey: TriggerCounterKey;
+      }
+    | {
+        readonly type: TriggerType.EveryNCrits;
+        readonly n: number;
+        readonly counterKey: TriggerCounterKey;
+      }
+    | {
+        readonly type: TriggerType.EveryNWeakspotHits;
+        readonly n: number;
         readonly counterKey: TriggerCounterKey;
       };
 

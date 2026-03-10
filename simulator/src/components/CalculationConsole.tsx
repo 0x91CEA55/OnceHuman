@@ -98,11 +98,11 @@ const ContributorItem: React.FC<{ contributor: TraceContributor, depth: number }
     return (
         <div className="ml-6 flex items-center justify-between py-0.5 px-2 hover:bg-white/5 rounded-sm group">
             <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-tight">
-                    {contributor.label}
+                <span className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-tight truncate max-w-[120px]">
+                    {contributor.label.split(' (')[0]}
                 </span>
                 {contributor.source && (
-                    <span className="text-[8px] text-primary/40 italic font-medium px-1 border border-primary/10 rounded-[2px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[8px] text-primary/60 italic font-black px-1 border border-primary/20 rounded-[2px] bg-primary/5 uppercase tracking-tighter">
                         {contributor.source}
                     </span>
                 )}

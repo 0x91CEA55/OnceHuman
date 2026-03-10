@@ -1,7 +1,7 @@
 import React from 'react';
 import { StatType } from '../types/enums';
 import { DiegeticFrame } from './DiegeticFrame';
-import { Activity, Zap, Cpu, Target, Shield, Flame, Wind, Info } from 'lucide-react';
+import { Activity, Zap, Cpu, Target, Shield, Flame, Wind, Info, LucideIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface DynamicStatDisplayProps {
@@ -13,7 +13,7 @@ export const DynamicStatDisplay: React.FC<DynamicStatDisplayProps> = ({
     baseStats, 
     currentStats
 }) => {
-    const renderStat = (label: string, type: StatType, unit: string = "", color: string = "text-foreground", Icon: any) => {
+    const renderStat = (label: string, type: StatType, unit: string = "", color: string = "text-foreground", Icon: LucideIcon) => {
         const base = baseStats[type] || 0;
         const current = currentStats[type] || 0;
         const diff = current - base;
@@ -70,7 +70,7 @@ export const DynamicStatDisplay: React.FC<DynamicStatDisplayProps> = ({
                     {renderStat("Psi Intensity", StatType.PsiIntensity, "", "text-purple-400", Activity)}
                     {renderStat("Status DMG Bonus", StatType.StatusDamagePercent, "%", "text-purple-300", Flame)}
                     {renderStat("Elemental DMG Bonus", StatType.ElementalDamagePercent, "%", "text-purple-300", Wind)}
-                    {renderStat("Burn DMG Bonus", StatType.BurnDamagePercent, "%", "text-red-400", Flame)}
+                    {renderStat("Burn DMG Bonus", StatType.BurnDamageFactor, "%", "text-red-400", Flame)}
                     {renderStat("Burn Limit", StatType.MaxBurnStacks, "", "text-red-500", Info)}
                 </div>
             </div>

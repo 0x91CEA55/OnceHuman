@@ -142,15 +142,6 @@ export enum StatType {
     UnstableBomberFinalDamage = 'unstable_bomber_final_dmg',
     BounceFinalDamage = 'bounce_final_dmg',
 
-    // Legacy / Generic Percent Stats
-    BurnDamagePercent = 'burn_damage_percent',
-    FrostVortexDamagePercent = 'frost_vortex_damage_percent',
-    PowerSurgeDamagePercent = 'power_surge_damage_percent',
-    ShrapnelDamagePercent = 'shrapnel_damage_percent',
-    UnstableBomberDamagePercent = 'unstable_bomber_damage_percent',
-    BounceDamagePercent = 'bounce_damage_percent',
-    BullsEyeDamagePercent = 'bulls_eye_damage_percent',
-
     MaxBurnStacks = 'max_burn_stacks',
     BurnDurationPercent = 'burn_duration_percent',
     BurnFrequencyPercent = 'burn_frequency_percent',
@@ -158,7 +149,13 @@ export enum StatType {
     // Simulation & UI Stats
     DPS = 'dps',
     SanityPercent = 'sanity_percent',
-    ShieldPercent = 'shield_percent'
+    ShieldPercent = 'shield_percent',
+    
+    // Resource Component Stats (ADR-014)
+    Sanity = 'sanity',
+    MaxSanity = 'max_sanity',
+    DeviantPower = 'deviant_power',
+    MaxDeviantPower = 'max_deviant_power'
 }
 
 export enum DamageTrait {

@@ -16,7 +16,7 @@
  * See: simulator/docs/designs/ADR-003-trigger-effect-execution-model.md §Verification
  */
 
-import { triggerMatches, runTriggerEvaluation, TriggerEvent, TriggerEvalContext } from '../engine/trigger-system';
+import { triggerMatches, runTriggerEvaluation, TriggerEvent, TriggerEvalContext } from '../ecs/systems/trigger-system';
 import { TriggerType } from '../types/trigger-types';
 import { triggerCounterKey } from '../types/keys';
 import { EnemyType } from '../types/enums';

@@ -1,6 +1,6 @@
 import { WeaponKey, Rarity, WeaponType, KeywordType, StatType, DamageTrait, FlagType } from '../../types/enums';
 import { WeaponBlueprint } from '../../types/materialization';
-import { IncreaseStatEffect, SetFlagEffect } from '../../models/effect';
+import { IncreaseStatEffect, SetFlagEffect } from '../../ecs/effects';
 import { TriggerType, DynEffectType, EffectTargetType, TriggerConditionType } from '../../types/trigger-types';
 import { triggerCounterKey, cooldownKey } from '../../types/keys';
 import { BURN_DOT, BULLS_EYE_BUFF, FAST_GUNNER_BUFF, FROST_VORTEX_DOT, POWER_SURGE_BUFF, FORTRESS_WARFARE_BUFF } from '../status-registry';
@@ -121,7 +121,7 @@ export const WEAPONS_V1_0: Record<string, WeaponBlueprint> = {
             weakspotDamagePercent: 50
         },
         intrinsicEffects: [
-            new IncreaseStatEffect(StatType.PowerSurgeDamagePercent, 30)
+            new IncreaseStatEffect(StatType.PowerSurgeDamageFactor, 30)
         ],
         triggerDefinitions: [
             {
@@ -388,7 +388,7 @@ export const WEAPONS_V1_0: Record<string, WeaponBlueprint> = {
             weakspotDamagePercent: 60
         },
         intrinsicEffects: [
-            new IncreaseStatEffect(StatType.ShrapnelDamagePercent, 30),
+            new IncreaseStatEffect(StatType.ShrapnelDamageFactor, 30),
         ],
         triggerDefinitions: [
             {
@@ -691,11 +691,9 @@ export const WEAPONS_V1_0: Record<string, WeaponBlueprint> = {
             weakspotDamagePercent: 50
         },
         intrinsicEffects: [
-            new IncreaseStatEffect(StatType.BurnDamagePercent, 75),
+            new IncreaseStatEffect(StatType.BurnDamageFactor, 75),
             new IncreaseStatEffect(StatType.MaxBurnStacks, -3),
             new IncreaseStatEffect(StatType.KeywordCritRatePercent, 20),
-            new IncreaseStatEffect(StatType.KeywordCritDamagePercent, 20),
-            new IncreaseStatEffect(StatType.ElementalDamagePercent, 30),
         ],
         triggerDefinitions: [
             {

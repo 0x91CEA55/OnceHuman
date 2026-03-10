@@ -3,7 +3,7 @@ import {
   Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, ReferenceLine, ComposedChart
 } from 'recharts';
-import { SimulationLogEntry, MonteCarloResult } from '../engine/damage-engine';
+import { SimulationLogEntry, MonteCarloResult } from '../engine/simulation-runner';
 
 interface DamageTimeSeriesChartProps {
     logs: SimulationLogEntry[];
@@ -11,9 +11,19 @@ interface DamageTimeSeriesChartProps {
     onPointClick: (index: number) => void;
 }
 
+interface ChartDataEntry {
+    index: number;
+    timestamp: number;
+    instant: number;
+    visualHeight: number;
+    cumulative: number;
+    event: string;
+    description: string;
+}
+
 export const DamageTimeSeriesChart: React.FC<DamageTimeSeriesChartProps> = ({ logs, currentIndex, onPointClick }) => {
     // Filter logs to only show shots and ticks (damage events)
-    const data = logs.map((log, index) => {
+    const data: ChartDataEntry[] = logs.map((log, index) => {
         // For visual clarity, we give 0-damage events a tiny "marker" height
         const visualDamage = (log.damage === 0 && (log.event === 'Damage' || log.event === 'Shot')) ? 5 : (log.damage || 0);
         
@@ -26,9 +36,17 @@ export const DamageTimeSeriesChart: React.FC<DamageTimeSeriesChartProps> = ({ lo
             event: log.event,
             description: log.description
         };
-    }).filter(d => d.event === 'Damage' || d.event === 'Shot' || d.event === 'Keyword' || d.event === 'Start' || d.event === 'End');
+    }).filter(d => 
+        d.event === 'Damage' || 
+        d.event === 'Shot' || 
+        d.event === 'Effect Damage' || 
+        d.event === 'DoT Tick' || 
+        d.event === 'Keyword' || 
+        d.event === 'Start' || 
+        d.event === 'End'
+    );
 
-    const CustomTooltip = ({ active, payload }: any) => {
+    const CustomTooltip = ({ active, payload }: { active?: boolean, payload?: { payload: ChartDataEntry }[] }) => {
         if (active && payload && payload.length) {
             const data = payload[0].payload;
             const isBurn = data.description.toLowerCase().includes('burn');
@@ -52,7 +70,7 @@ export const DamageTimeSeriesChart: React.FC<DamageTimeSeriesChartProps> = ({ lo
         return null;
     };
 
-    const getBarColor = (entry: any, isSelected: boolean) => {
+    const getBarColor = (entry: ChartDataEntry, isSelected: boolean) => {
         if (isSelected) return '#ffffff';
         
         const desc = entry.description.toLowerCase();
@@ -84,9 +102,11 @@ export const DamageTimeSeriesChart: React.FC<DamageTimeSeriesChartProps> = ({ lo
                     <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
                     <XAxis 
                         dataKey="timestamp" 
+                        type="number"
+                        domain={['dataMin', 'dataMax']}
                         stroke="#ffffff20" 
                         fontSize={8} 
-                        tickFormatter={(val) => `${val}s`}
+                        tickFormatter={(val) => `${val.toFixed(1)}s`}
                         minTickGap={30}
                         axisLine={false}
                     />
