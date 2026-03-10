@@ -1,6 +1,6 @@
-import { WeaponKey, Rarity, WeaponType, KeywordType } from './enums';
+import { WeaponKey, Rarity, WeaponType, KeywordType, ArmorKey, ArmorSetKey, ArmorSlot } from './enums';
 import { TriggerDefinition } from './trigger-types';
-import { BaseEffect } from '../models/effect';
+import { IEffect } from './domain-interfaces';
 
 /**
  * ADR-008: WeaponBlueprint represents the "Locked" and "Materialized" 
@@ -37,7 +37,7 @@ export interface WeaponBlueprint {
      * Resolved executable logic. 
      * No more "description" parsing; these are instantiated engine effects.
      */
-    intrinsicEffects: BaseEffect[];
+    intrinsicEffects: IEffect[];
 
     /** 
      * Resolved behaviors for ADR-003. 
@@ -64,3 +64,30 @@ export interface WeaponBlueprint {
  * Registry mapping for versioned weapon data.
  */
 export type WeaponRegistry = Record<WeaponKey, WeaponBlueprint>;
+
+/**
+ * ADR-008: ArmorData represents the materialized blueprint for an armor piece.
+ */
+export interface ArmorData {
+    id: ArmorKey;
+    name: string;
+    slot: ArmorSlot;
+    rarity: Rarity;
+    setKey?: ArmorSetKey;
+    intrinsicEffects?: IEffect[]; 
+    triggerDefinitions?: TriggerDefinition[];
+}
+
+/**
+ * ADR-008: ArmorSetData represents the materialized blueprint for an armor set.
+ */
+export interface ArmorSetData {
+    id: ArmorSetKey;
+    name: string;
+    bonuses: { 
+        requiredPieces: number; 
+        effects: IEffect[];
+        triggerDefinitions?: TriggerDefinition[];
+    }[];
+}
+

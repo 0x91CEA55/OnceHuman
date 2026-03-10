@@ -13,7 +13,7 @@ export enum SubstatTier {
  * Authoritative lookup for substat values based on type and tier.
  * These are fixed associated values.
  */
-const SUBSTAT_VALUE_LOOKUP: Partial<Record<StatType, Partial<Record<SubstatTier, number>>>> = {
+export const SUBSTAT_VALUE_LOOKUP: Partial<Record<StatType, Partial<Record<SubstatTier, number>>>> = {
     [StatType.CritDamagePercent]: {
         [SubstatTier.White]: 3.0,
         [SubstatTier.Green]: 6.0,
@@ -70,19 +70,15 @@ const SUBSTAT_VALUE_LOOKUP: Partial<Record<StatType, Partial<Record<SubstatTier,
         [SubstatTier.Purple]: 6.0,
         [SubstatTier.Gold]: 8.0
     },
-    // Add more mappings as researched...
 };
 
+export function getSubstatValue(type: StatType, tier: SubstatTier): number {
+    const typeValues = SUBSTAT_VALUE_LOOKUP[type];
+    if (!typeValues) return 0;
+    return typeValues[tier] || 0;
+}
 
-export class Substat {
-    constructor(
-        public readonly type: StatType,
-        public readonly tier: SubstatTier
-    ) {}
-
-    get value(): number {
-        const typeValues = SUBSTAT_VALUE_LOOKUP[this.type];
-        if (!typeValues) return 0;
-        return typeValues[this.tier] || 0;
-    }
+export interface SubstatData {
+    type: StatType;
+    tier: SubstatTier;
 }

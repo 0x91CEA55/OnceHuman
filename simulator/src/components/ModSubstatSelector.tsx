@@ -1,12 +1,12 @@
 import React from 'react';
 import { StatType } from '../types/enums';
-import { Substat, SubstatTier } from '../models/substat';
+import { SubstatTier, SubstatData, getSubstatValue } from '../data/substats';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from '@/lib/utils';
 
 interface ModSubstatSelectorProps {
-    substats: [Substat, Substat, Substat, Substat];
-    onChange: (substats: [Substat, Substat, Substat, Substat]) => void;
+    substats: [SubstatData, SubstatData, SubstatData, SubstatData];
+    onChange: (substats: [SubstatData, SubstatData, SubstatData, SubstatData]) => void;
 }
 
 const SUBSTAT_OPTIONS = [
@@ -32,12 +32,12 @@ const TIER_COLORS: Record<SubstatTier, string> = {
 
 export const ModSubstatSelector: React.FC<ModSubstatSelectorProps> = ({ substats, onChange }) => {
     const handleUpdate = (index: number, type?: StatType, tier?: SubstatTier) => {
-        const newSubstats = [...substats] as [Substat, Substat, Substat, Substat];
+        const newSubstats = [...substats] as [SubstatData, SubstatData, SubstatData, SubstatData];
         const current = substats[index];
-        newSubstats[index] = new Substat(
-            type ?? current.type,
-            tier !== undefined ? tier : current.tier
-        );
+        newSubstats[index] = {
+            type: type ?? current.type,
+            tier: tier !== undefined ? tier : current.tier
+        };
         onChange(newSubstats);
     };
 
@@ -66,9 +66,7 @@ export const ModSubstatSelector: React.FC<ModSubstatSelectorProps> = ({ substats
                         </div>
                         
                         <div className="flex gap-1 pr-1">
-                            {Object.values(SubstatTier)
-                                .filter(t => typeof t === 'number')
-                                .map((tier) => (
+                            {[SubstatTier.None, SubstatTier.White, SubstatTier.Green, SubstatTier.Blue, SubstatTier.Purple, SubstatTier.Gold].map((tier) => (
                                     <button
                                         key={tier}
                                         onClick={() => handleUpdate(i, undefined, tier as SubstatTier)}
@@ -77,7 +75,7 @@ export const ModSubstatSelector: React.FC<ModSubstatSelectorProps> = ({ substats
                                             TIER_COLORS[tier as SubstatTier],
                                             sub.tier === tier ? "ring-1 ring-white ring-offset-1 ring-offset-black scale-110" : "opacity-40"
                                         )}
-                                        title={String(SubstatTier[tier as unknown as keyof typeof SubstatTier])}
+                                        title={SubstatTier[tier]}
                                     />
                                 ))
                             }
@@ -88,7 +86,7 @@ export const ModSubstatSelector: React.FC<ModSubstatSelectorProps> = ({ substats
                                 "text-[10px] font-mono font-bold",
                                 sub.tier === SubstatTier.None ? "text-muted-foreground/30" : "text-primary"
                             )}>
-                                {sub.tier === SubstatTier.None ? "0.0" : sub.value.toFixed(1)}
+                                {sub.tier === SubstatTier.None ? "0.0" : getSubstatValue(sub.type, sub.tier).toFixed(1)}
                             </span>
                         </div>
                     </div>

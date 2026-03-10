@@ -20,12 +20,12 @@ import {
     RollDefinition,
     ContextFlag,
 } from '../types/resolution';
-import { StatType, DamageTrait, KeywordType, EnemyType } from '../types/enums';
+import { StatType, DamageTrait, KeywordType, EnemyType, FlagType } from '../types/enums';
 import { RngService } from './rng';
 import { UNIVERSAL_BUCKETS } from './bucket-registry';
-import { Player } from '../models/player';
+import { StatsComponent, FlagComponent } from '../ecs/types';
 import { telemetry } from './audit-log';
-import { TraceNode, TraceContributor } from '../types/telemetry';
+import { TraceNode, TraceContributor, StatContribution } from '../types/telemetry';
 
 /**
  * Evaluates a ContributionCondition against the current ResolutionContext.
@@ -73,21 +73,29 @@ export function evaluate(condition: ContributionCondition, ctx: ResolutionContex
  * Resolves final damage by multiplying through all universal buckets.
  * Non-applicable buckets contribute (1 + 0/100) = 1.0 and vanish.
  *
- * @param baseDamage  Absolute base damage before any buckets apply
+ * @param baseValue   Absolute base stat (e.g. PsiIntensity or Attack)
  * @param buckets     Universal bucket registry (always UNIVERSAL_BUCKETS)
  * @param ctx         Resolution context for this damage event
  * @param recordToTelemetry  If true, records the trace to the global telemetry manager.
+ * @param intrinsicScaling   Direct multiplier applied to the base value (e.g. Keyword weight 0.12).
  * @returns           Final damage value + per-bucket audit trail + calculation trace
  */
 export function resolve(
-    baseDamage: number,
+    baseValue: number,
     buckets: readonly BucketDef[],
     ctx: ResolutionContext,
-    recordToTelemetry: boolean = false
+    recordToTelemetry: boolean = false,
+    intrinsicScaling: number = 1.0
 ): { finalDamage: number; audit: Map<BucketId, number>; trace: TraceNode } {
-    let result = baseDamage;
+    let result = baseValue * intrinsicScaling;
     const audit = new Map<BucketId, number>();
     const traceContributors: TraceContributor[] = [];
+
+    // ADR-014: Include intrinsic scaling in trace
+    traceContributors.push({ label: 'Base Value', value: baseValue, type: 'constant' });
+    if (intrinsicScaling !== 1.0) {
+        traceContributors.push({ label: 'Intrinsic Scaling', value: intrinsicScaling, type: 'multiplier' });
+    }
 
     for (const bucket of buckets) {
         let sum = 0;
@@ -97,12 +105,27 @@ export function resolve(
                 const val = ctx.statValues.get(contributor.stat) ?? 0;
                 if (val !== 0) {
                     sum += val;
-                    bucketContributors.push({
-                        label: contributor.stat,
-                        value: val,
-                        type: 'stat',
-                        isPercentage: true
-                    });
+                    
+                    // ADR-014: Include detailed contributions if available
+                    const contributions = ctx.statContributions.get(contributor.stat);
+                    if (contributions && contributions.length > 0) {
+                        for (const sub of contributions) {
+                            bucketContributors.push({
+                                label: `${contributor.stat} (${sub.source})`,
+                                value: sub.value,
+                                source: sub.source,
+                                type: 'stat',
+                                isPercentage: true
+                            });
+                        }
+                    } else {
+                        bucketContributors.push({
+                            label: contributor.stat,
+                            value: val,
+                            type: 'stat',
+                            isPercentage: true
+                        });
+                    }
                 }
             }
         }
@@ -130,11 +153,11 @@ export function resolve(
     const finalTrace: TraceNode = {
         id: `damage_resolution:${Date.now()}`,
         label: 'Damage Resolution',
-        baseValue: baseDamage,
+        baseValue: baseValue,
         finalValue: result,
         operation: 'product',
         contributors: [
-            { label: 'Base Damage', value: baseDamage, type: 'constant' },
+            { label: 'Base Damage', value: baseValue, type: 'constant' },
             ...traceContributors
         ],
         timestamp: Date.now()
@@ -194,20 +217,24 @@ export interface ScenarioScanResult {
  * ADR-013: respects canCrit and canWeakspot flags for keyword-specific restrictions.
  */
 export function resolveScenarioScan(
-    baseDamage: number,
-    player: Player,
+    baseValue: number,
+    stats: StatsComponent,
+    flags: FlagComponent,
     targetType: EnemyType,
     traits: ReadonlySet<DamageTrait>,
     unlockedKeywordCrits: ReadonlySet<KeywordType> = new Set(),
     logLabel?: string,
     canCrit: boolean = true,
-    canWeakspot: boolean = true
+    canWeakspot: boolean = true,
+    intrinsicScaling: number = 1.0,
+    statContributions: ReadonlyMap<StatType, StatContribution[]> = new Map(),
+    manualWeakspotHitRate?: number
 ): ScenarioScanResult {
-    const statValues = statValuesFromSnapshot(player.stats.snapshot());
+    const statValues = statValuesFromSnapshot(stats.snapshot);
     
-    const runScenario = (flags: ScenarioFlags) => {
+    const runScenario = (scenarioFlags: ScenarioFlags) => {
         const initialFlags = new Map<ContextFlag, boolean>();
-        Object.entries(flags).forEach(([k, v]) => {
+        Object.entries(scenarioFlags).forEach(([k, v]) => {
             // Apply restrictions: if scenario wants a crit but keyword can't, force false.
             let finalVal = v;
             if (k === 'wasCrit' && !canCrit) finalVal = false;
@@ -216,12 +243,21 @@ export function resolveScenarioScan(
             
             initialFlags.set(k as ContextFlag, finalVal);
         });
+
+        // ADR-013: Set explicit safety flag for bucket resolver
+        if (!canWeakspot) {
+            initialFlags.set(FlagType.CannotDealWeakspotDamage, true);
+        }
         
         // Merge player permanent flags
-        player.flags.forEach((v, k) => { if (!initialFlags.has(k as ContextFlag)) initialFlags.set(k as ContextFlag, v); });
+        flags.activeFlags.forEach(f => {
+            if (!initialFlags.has(f as ContextFlag)) {
+                initialFlags.set(f as ContextFlag, true);
+            }
+        });
 
-        const ctx = buildResolutionContext(traits, targetType, statValues, initialFlags, unlockedKeywordCrits);
-        return resolve(baseDamage, UNIVERSAL_BUCKETS, ctx, false);
+        const ctx = buildResolutionContext(traits, targetType, statValues, initialFlags, unlockedKeywordCrits, statContributions);
+        return resolve(baseValue, UNIVERSAL_BUCKETS, ctx, false, intrinsicScaling);
     };
 
     const resNormal = runScenario({ wasCrit: false, wasWeakspot: false, wasBurnCrit: false });
@@ -230,8 +266,10 @@ export function resolveScenarioScan(
     const resBoth   = runScenario({ wasCrit: true,  wasWeakspot: true,  wasBurnCrit: true });
 
     // Expected Value Calculation
-    const critRate = canCrit ? (player.stats.get(StatType.CritRatePercent)?.value ?? 0) / 100 : 0;
-    const wsRate   = canWeakspot ? (player.stats.get(StatType.WeakspotHitRatePercent)?.value ?? 0) / 100 : 0;
+    const critRate = canCrit ? (stats.snapshot[StatType.CritRatePercent] || 0) / 100 : 0;
+    const wsRate   = (canWeakspot && manualWeakspotHitRate !== undefined) 
+        ? manualWeakspotHitRate 
+        : (canWeakspot ? (stats.snapshot[StatType.WeakspotHitRatePercent] || 0) / 100 : 0);
 
     const expected = 
         resNormal.finalDamage * (1 - critRate) * (1 - wsRate) +
@@ -283,6 +321,17 @@ export function resolveCritRate(
     return Math.min(sum / 100, 1);
 }
 
+export const TRAIT_TO_KEYWORD: Partial<Record<DamageTrait, KeywordType>> = {
+    [DamageTrait.Burn]: KeywordType.Burn,
+    [DamageTrait.FrostVortex]: KeywordType.FrostVortex,
+    [DamageTrait.PowerSurge]: KeywordType.PowerSurge,
+    [DamageTrait.Shrapnel]: KeywordType.Shrapnel,
+    [DamageTrait.UnstableBomber]: KeywordType.UnstableBomber,
+    [DamageTrait.Bounce]: KeywordType.Bounce,
+    [DamageTrait.FastGunner]: KeywordType.FastGunner,
+    [DamageTrait.BullsEye]: KeywordType.BullsEye,
+};
+
 /**
  * Builds a ResolutionContext from a player's current stat snapshot.
  * Derives keyword set from DamageTraits (Burn trait → Burn keyword, etc.).
@@ -293,21 +342,13 @@ export function buildResolutionContext(
     statValues: ReadonlyMap<StatType, number>,
     initialFlags: Map<ContextFlag, boolean> = new Map(),
     unlockedKeywordCrits: ReadonlySet<KeywordType> = new Set(),
+    statContributions: ReadonlyMap<StatType, StatContribution[]> = new Map(),
 ): ResolutionContext {
     // Derive active keywords from trait set
     const keywords = new Set<KeywordType>();
-    const traitToKeyword: Partial<Record<DamageTrait, KeywordType>> = {
-        [DamageTrait.Burn]: KeywordType.Burn,
-        [DamageTrait.FrostVortex]: KeywordType.FrostVortex,
-        [DamageTrait.PowerSurge]: KeywordType.PowerSurge,
-        [DamageTrait.Shrapnel]: KeywordType.Shrapnel,
-        [DamageTrait.UnstableBomber]: KeywordType.UnstableBomber,
-        [DamageTrait.Bounce]: KeywordType.Bounce,
-        [DamageTrait.FastGunner]: KeywordType.FastGunner,
-        [DamageTrait.BullsEye]: KeywordType.BullsEye,
-    };
+    
     for (const trait of traits) {
-        const kw = traitToKeyword[trait];
+        const kw = TRAIT_TO_KEYWORD[trait];
         if (kw) keywords.add(kw);
     }
 
@@ -319,6 +360,7 @@ export function buildResolutionContext(
         flags: initialFlags,
         unlockedKeywordCrits,
         statValues,
+        statContributions,
     };
 }
 

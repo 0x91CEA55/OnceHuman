@@ -15,6 +15,10 @@
 *   **Weakspot DMG**: Multiplier applied when hitting enemy weakpoints.
 
 ### 2. Keywords & Bucket Classifications
+> **Note on Translation Errors (ADR-002/ADR-014 Analysis):**
+> *   **DMG Coefficient**: This term (seen on Mayfly Goggles, Gas-tight Helmet) is a translation error for the **DMG Factor** pool. In-game testing ("The 113 Test") proves that Factor and Coefficient are **additive** with each other within a single multiplicative bucket.
+> *   **Ultimate DMG**: This term (seen on First Electrocution mod) is a translation error for **Final DMG Bonus**. It behaves as a multiplier in the Final DMG bucket. Do not implement as a separate bucket.
+
 *   **Status DMG Bonus**: Global multiplier for all status-related damage (Burn, Frost Vortex, etc.).
 *   **Elemental DMG Bonus**: Categories: **Blaze**, **Frost**, and **Shock**. (Note: "Flammable" and "Blast" are occasionally used interchangeably with "Blaze" and "Blast/Explosion" depending on translation/typos in set descriptions).
 *   **Keyword DMG Bonus**: Specific multipliers (e.g., "Burn DMG Bonus"). Standard mods often abbreviate this to "[Keyword] DMG" (e.g., "Unstable Bomber DMG +5%", "Frost Vortex DMG +10%").
@@ -58,11 +62,32 @@
 | `m416_silent_anabasis` | M416 - Silent Anabasis | When the weapon hits, there is a 12% chance to trigger Frost Vortex.<br>. When the weapon hits, it generates Ice Crystals with a cooldown of 1.5 seconds. The Ice Crystals last for 15 seconds (Ice Crystals deal 40% damage to Metas). Upon expiration, the Ice Crystals explode, dealing 100% Psi Intensity as Frost Vortex damage to nearby objectives.<br>. Hitting an Ice Crystal with a weapon causes it to detonate prematurely, increasing the damage multiplier from 100% to 350%.<br>. Frost Elemental DMG +30%. For each Ice Crystal shattered, Frost Elemental DMG gains an additional +8%, lasting 15 seconds, stacking up to 3 stacks. | DMG 240, FR 750, MAG 36, CR 6%, CD 27%, WS 60% | WeaponsOverview-FullStarsFullCalibsLvl5.png |
 | `kv-sbr_little_jaws` | KV-SBR - Little Jaws | When the weapon hits, it triggers Unstable Bomber, with a 0.9s cooldown (deals 40% damage against Meta-Humans).<br>. Unstable Bomber delay +0.2s.<br>. Each time an enemy affected by Unstable Bomber is hit, the current Unstable Bomber Final DMG +20%.<br>. For every +0.1s of Unstable Bomber delay, Unstable Bomber DMG +15%. | DMG 209, FR 1000, MAG 30, CR 10%, CD 30%, WS 45% | WeaponsOverview-FullStarsFullCalibsLvl5.png |
 | `tec9_additional_rules` | TEC9 - Additional Rules | When shooting hits a target, trigger Fortress Warfare, with a cooldown of 10 seconds.<br>. After using Deviant skill, bullets deal 120% Attack as Elemental Status DMG (type depends on the Deviation)<br>. Reloading an empty magazine restores 25% magazine capacity as Deviant Power, up to a maximum of 20 points per reload<br>. In Fortress state, Crit Rate +15% | DMG 449, FR 450, MAG 30, CR 10%, CD 30%, WS 45% | WeaponsOverview-FullStarsFullCalibsLvl5.png |
-| `octopus_grilled_rings` | EBR-14: Octopus! Grilled Rings! | When the weapon hits a target, 50% chance to apply burn to target.<br>At max stacks, Burn targets generate a fire ring, spreading Burn DMG to enemies within 6 meters at Burn frequency.<br>Burn DMG +75%, max Burn stacks -3.<br>Burn crit rate and Burn crit DMG +20% | DMG 471, FR 300, MAG 20, CR 5%, CD 40%, WS 50% | raw.json (Verified Source Truth) |
+| `octopus_grilled_rings` | EBR-14: Octopus! Grilled Rings! | When the weapon hits a target, 50% chance to apply burn to target.<br>At max stacks, Burn targets generate a fire ring, spreading Burn DMG to enemies within 6 meters at Burn frequency.<br>Burn DMG +75%, max Burn stacks -3.<br>Burn crit rate +20% | DMG 471, FR 300, MAG 20, CR 5%, CD 40%, WS 50% | raw.json (Verified Source Truth) |
 
 ---
 
-## III. Armor Sets & Global Bonuses
+## VI. Suffix & Suffix Scaling Logic
+*Source: research/data/ingame-screenshots/Mod/LunarCrescentSubstatPercents.png*
+
+### 1. Lunar Suffix (Inverse HP Scaling)
+*   **Condition**: The lower your HP, the higher the bonus.
+*   **Max Trigger**: Bonus is maximized at low HP (Community consensus ≤ 30%).
+*   **Verified Peak Values (Gold/Legendary)**:
+    *   **Crit DMG**: +30.0%
+    *   **Elemental DMG**: +16.0%
+    *   **Weapon / Status DMG**: +12.0%
+*   **Scaling Pattern (Purple/Epic)**: Provides exactly 80% of Gold peak (e.g., 24% Crit DMG).
+
+### 2. Crescent Suffix (Shield Threshold Scaling)
+*   **Condition**: Provides a base bonus, plus an extra bonus based on Shield (triggers at 40% Shield).
+*   **Verified Peak Values (Gold/Legendary)**:
+    *   **Crit DMG**: +10.0% (Base) + 15.0% (Extra) = **+25.0% Peak**
+    *   **Elemental DMG**: +5.0% (Base) + 8.0% (Extra) = **+13.0% Peak**
+    *   **Weapon / Status DMG**: +4.0% (Base) + 6.0% (Extra) = **+10.0% Peak**
+
+---
+
+## VII. Knowledge Acquisition Log
 *Source: research/data/ingame-screenshots/Armor/SetEffectsOverview.png*
 
 | Set Name | 1-Piece Bonus | 2-Piece Bonus | 3-Piece Bonus | 4-Piece Bonus |

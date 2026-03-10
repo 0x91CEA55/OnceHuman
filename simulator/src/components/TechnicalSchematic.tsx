@@ -5,9 +5,9 @@ import { ARMOR } from '../data/armor';
 import { MODS } from '../data/mods';
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Substat } from '../models/substat';
+import { SubstatData } from '../data/substats';
 import { ModSubstatSelector } from './ModSubstatSelector';
-import { cn } from '../lib/utils';
+import { cn } from '@/lib/utils';
 import { Box, Layers, Settings2 } from 'lucide-react';
 import { AMMUNITION } from '../data/ammunition';
 
@@ -15,10 +15,10 @@ interface TechnicalSchematicProps {
     slot: GearSlot;
     selectedItemId?: string;
     selectedModId?: string;
-    selectedSubstats?: [Substat, Substat, Substat, Substat];
+    selectedSubstats?: [SubstatData, SubstatData, SubstatData, SubstatData];
     onItemSelect: (id: string) => void;
     onModSelect: (id: string) => void;
-    onSubstatChange: (substats: [Substat, Substat, Substat, Substat]) => void;
+    onSubstatChange: (substats: [SubstatData, SubstatData, SubstatData, SubstatData]) => void;
     starLevel?: number;
     onStarLevelChange?: (star: number) => void;
     tierLevel?: number;

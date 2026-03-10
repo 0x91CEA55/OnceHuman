@@ -6,6 +6,7 @@
  */
 
 import { StatType, DamageTrait, KeywordType, EnemyType, FlagType } from './enums';
+import { StatContribution } from './telemetry';
 
 /**
  * ADR-005: Context Flags
@@ -134,4 +135,6 @@ export interface ResolutionContext {
     readonly unlockedKeywordCrits: ReadonlySet<KeywordType>;
     /** Pre-aggregated stat pool from PlayerStats. */
     readonly statValues: ReadonlyMap<StatType, number>;
+    /** Detailed contributions for each stat (for telemetry source tracing). */
+    readonly statContributions: ReadonlyMap<StatType, StatContribution[]>;
 }

@@ -4,7 +4,7 @@ import { DoTId, BuffId } from './keys';
 /**
  * Immutable definition for a Damage-over-Time effect.
  * Pure data — no methods, no class instances.
- * Lives in the status registry; referenced by DoTInstance.definitionId.
+ * Lives in the status registry; referenced by ActiveDoT.definitionId.
  */
 export interface DoTDefinition {
     readonly id: DoTId;
@@ -40,7 +40,7 @@ export interface BuffDefinition {
  * Live runtime state for an active DoT on a target.
  * Mutable fields are intentionally non-readonly — they change each tick.
  */
-export interface DoTInstance {
+export interface ActiveDoT {
     readonly definitionId: DoTId;
     currentStacks: number;
     remainingDurationSeconds: number;
@@ -53,7 +53,7 @@ export interface DoTInstance {
 /**
  * Live runtime state for an active Buff on an entity.
  */
-export interface BuffInstance {
+export interface ActiveBuff {
     readonly definitionId: BuffId;
     currentStacks: number;
     remainingDurationSeconds: number;

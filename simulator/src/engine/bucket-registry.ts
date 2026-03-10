@@ -9,14 +9,14 @@
  * - Condition logic (ALWAYS, flag('wasCrit')) determines applicability.
  */
 
-import { BucketDef, BucketId, ConditionType } from '../types/resolution';
+import { BucketDef, BucketId, ConditionType, ContributorDef, RollDefinition, ContextFlag } from '../types/resolution';
 import { StatType, KeywordType, EnemyType, FlagType, DamageTrait } from '../types/enums';
 
 const ALWAYS = { type: ConditionType.Always } as const;
 const trait = (trait: DamageTrait) => ({ type: ConditionType.TraitMatches, trait } as const);
 const kw = (keyword: KeywordType) => ({ type: ConditionType.KeywordMatches, keyword } as const);
 const target = (targetType: EnemyType) => ({ type: ConditionType.TargetTypeMatches, targetType } as const);
-const flag = (flag: string) => ({ type: ConditionType.FlagActive, flag: flag as any } as const);
+const flag = (flag: ContextFlag) => ({ type: ConditionType.FlagActive, flag } as const);
 
 export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
 
@@ -45,28 +45,6 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
             { stat: StatType.AttackPercent, condition: trait(DamageTrait.Attack) },
         ],
     },
-    {
-        id: BucketId.PsiIncrease,
-        contributors: [
-            { stat: StatType.PsiIntensity, condition: ALWAYS },
-        ],
-    },
-
-    // ── Crit Buckets ──────────────────────────────────────────────────────
-    {
-        id: BucketId.CritMultiplier,
-        contributors: [
-            { stat: StatType.CritDamagePercent, condition: flag('wasCrit') },
-        ],
-    },
-
-    // ── Weakspot Buckets ──────────────────────────────────────────────────
-    {
-        id: BucketId.WeakspotMultiplier,
-        contributors: [
-            { stat: StatType.WeakspotDamagePercent, condition: flag('wasWeakspot') },
-        ],
-    },
 
     // ── Hit Amplifier (Crit DMG + Weakspot DMG are ADDITIVE here) ──────────
     {
@@ -79,10 +57,43 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
                     type: ConditionType.And,
                     conditions: [
                         flag('wasWeakspot'),
-                        { type: ConditionType.Not, condition: { type: ConditionType.FlagActive, flag: FlagType.CannotDealWeakspotDamage as any } }
+                        { type: ConditionType.Not, condition: { type: ConditionType.FlagActive, flag: FlagType.CannotDealWeakspotDamage } }
                     ]
                 }
             },
+            // ADR-013: Keyword-specific crit DMG (e.g. Burn Crit DMG from Gilded Gloves)
+            { 
+                stat: StatType.KeywordCritDamagePercent, 
+                condition: {
+                    type: ConditionType.And,
+                    conditions: [
+                        {
+                            type: ConditionType.Or,
+                            conditions: [
+                                flag('wasBurnCrit'),
+                                // Add generic keyword crits if we ever roll them
+                                {
+                                    type: ConditionType.And,
+                                    conditions: [
+                                        flag('wasCrit'),
+                                        { type: ConditionType.FlagActive, flag: FlagType.KeywordCanCrit }
+                                    ]
+                                }
+                            ]
+                        },
+                        // MANDATORY: Must be a keyword-eligible intent
+                        {
+                            type: ConditionType.Or,
+                            conditions: [
+                                kw(KeywordType.Burn),
+                                kw(KeywordType.PowerSurge),
+                                kw(KeywordType.FrostVortex),
+                                kw(KeywordType.UnstableBomber)
+                            ]
+                        }
+                    ]
+                }
+            }
         ],
     },
 
@@ -108,46 +119,97 @@ export const UNIVERSAL_BUCKETS: readonly BucketDef[] = [
 
     // ── Keyword-Specific FACTOR Buckets (Scales Base) ──────────────────────
     {
-        id: BucketId.KeywordFactor,
-        contributors: [
-            { stat: StatType.BurnDamageFactor,           condition: kw(KeywordType.Burn) },
-            { stat: StatType.FrostVortexDamageFactor,    condition: kw(KeywordType.FrostVortex) },
-            { stat: StatType.PowerSurgeDamageFactor,     condition: kw(KeywordType.PowerSurge) },
-            { stat: StatType.ShrapnelDamageFactor,       condition: kw(KeywordType.Shrapnel) },
-            { stat: StatType.UnstableBomberDamageFactor, condition: kw(KeywordType.UnstableBomber) },
-            { stat: StatType.BounceDamageFactor,         condition: kw(KeywordType.Bounce) },
-        ],
+        id: BucketId.BurnFactor,
+        contributors: [{ stat: StatType.BurnDamageFactor, condition: kw(KeywordType.Burn) }],
+    },
+    {
+        id: BucketId.FrostVortexFactor,
+        contributors: [{ stat: StatType.FrostVortexDamageFactor, condition: kw(KeywordType.FrostVortex) }],
+    },
+    {
+        id: BucketId.PowerSurgeFactor,
+        contributors: [{ stat: StatType.PowerSurgeDamageFactor, condition: kw(KeywordType.PowerSurge) }],
+    },
+    {
+        id: BucketId.ShrapnelFactor,
+        contributors: [{ stat: StatType.ShrapnelDamageFactor, condition: kw(KeywordType.Shrapnel) }],
+    },
+    {
+        id: BucketId.UnstableBomberFactor,
+        contributors: [{ stat: StatType.UnstableBomberDamageFactor, condition: kw(KeywordType.UnstableBomber) }],
+    },
+    {
+        id: BucketId.BounceFactor,
+        contributors: [{ stat: StatType.BounceDamageFactor, condition: kw(KeywordType.Bounce) }],
     },
 
     // ── Keyword-Specific FINAL Buckets (Post-all multipliers) ─────────────
     {
-        id: BucketId.KeywordFinal,
-        contributors: [
-            { stat: StatType.BurnFinalDamage,           condition: kw(KeywordType.Burn) },
-            { stat: StatType.FrostVortexFinalDamage,    condition: kw(KeywordType.FrostVortex) },
-            { stat: StatType.PowerSurgeFinalDamage,     condition: kw(KeywordType.PowerSurge) },
-            { stat: StatType.ShrapnelFinalDamage,       condition: kw(KeywordType.Shrapnel) },
-            { stat: StatType.UnstableBomberFinalDamage, condition: kw(KeywordType.UnstableBomber) },
-            { stat: StatType.BounceFinalDamage,         condition: kw(KeywordType.Bounce) },
-        ],
+        id: BucketId.BurnFinal,
+        contributors: [{ stat: StatType.BurnFinalDamage, condition: kw(KeywordType.Burn) }],
+    },
+    {
+        id: BucketId.FrostVortexFinal,
+        contributors: [{ stat: StatType.FrostVortexFinalDamage, condition: kw(KeywordType.FrostVortex) }],
+    },
+    {
+        id: BucketId.PowerSurgeFinal,
+        contributors: [{ stat: StatType.PowerSurgeFinalDamage, condition: kw(KeywordType.PowerSurge) }],
+    },
+    {
+        id: BucketId.ShrapnelFinal,
+        contributors: [{ stat: StatType.ShrapnelFinalDamage, condition: kw(KeywordType.Shrapnel) }],
+    },
+    {
+        id: BucketId.UnstableBomberFinal,
+        contributors: [{ stat: StatType.UnstableBomberFinalDamage, condition: kw(KeywordType.UnstableBomber) }],
+    },
+    {
+        id: BucketId.BounceFinal,
+        contributors: [{ stat: StatType.BounceFinalDamage, condition: kw(KeywordType.Bounce) }],
     },
 ];
 
 /** Crit rate contributors — same pure-data pattern as bucket contributors. */
-export const CRIT_RATE_CONTRIBUTORS: readonly any[] = [
+export const CRIT_RATE_CONTRIBUTORS: readonly ContributorDef[] = [
     { stat: StatType.CritRatePercent, condition: ALWAYS },
 ];
 
 /** Weakspot roll contributors. ADR-013: checks CannotDealWeakspotDamage flag. */
-export const WEAKSPOT_RATE_CONTRIBUTORS: readonly any[] = [
+export const WEAKSPOT_RATE_CONTRIBUTORS: readonly ContributorDef[] = [
     { 
         stat: StatType.WeakspotHitRatePercent, 
         condition: { type: ConditionType.Not, condition: flag(FlagType.CannotDealWeakspotDamage) } 
     },
 ];
 
+/** ADR-013: Keyword crit roll contributors. */
+export const KEYWORD_CRIT_RATE_CONTRIBUTORS: readonly ContributorDef[] = [
+    // Global crit rate always applies to keyword crits
+    { stat: StatType.CritRatePercent, condition: flag(FlagType.KeywordCanCrit) },
+    // Keyword-specific crit rate only applies IF a keyword is active
+    { 
+        stat: StatType.KeywordCritRatePercent, 
+        condition: {
+            type: ConditionType.And,
+            conditions: [
+                flag(FlagType.KeywordCanCrit),
+                {
+                    type: ConditionType.Or,
+                    conditions: [
+                        kw(KeywordType.Burn),
+                        kw(KeywordType.PowerSurge),
+                        kw(KeywordType.FrostVortex),
+                        kw(KeywordType.UnstableBomber)
+                    ]
+                }
+            ]
+        }
+    },
+];
+
 /** Registry of all probabilistic "Rolls" in the engine. */
-export const ROLL_REGISTRY: readonly any[] = [
+export const ROLL_REGISTRY: readonly RollDefinition[] = [
     {
         id: 'crit',
         rateContributors: CRIT_RATE_CONTRIBUTORS,
@@ -157,5 +219,10 @@ export const ROLL_REGISTRY: readonly any[] = [
         id: 'weakspot',
         rateContributors: WEAKSPOT_RATE_CONTRIBUTORS,
         resultFlag: 'wasWeakspot'
+    },
+    {
+        id: 'burn-crit',
+        rateContributors: KEYWORD_CRIT_RATE_CONTRIBUTORS,
+        resultFlag: 'wasBurnCrit'
     }
 ];

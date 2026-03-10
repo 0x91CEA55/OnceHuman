@@ -1,5 +1,10 @@
 import { StatType } from './enums';
 
+export interface StatContribution {
+    value: number;
+    source: string;
+}
+
 export type TraceOperation = 'sum' | 'product' | 'scaling' | 'identity' | 'roll';
 
 export interface TraceNode {

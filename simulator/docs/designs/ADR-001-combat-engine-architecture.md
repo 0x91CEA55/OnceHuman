@@ -108,8 +108,8 @@ interface CombatStateComponent {
     readonly entityId: EntityId;
     counters: Map<CounterKey, number>;      // CounterKey is a branded string union, not raw string
     cooldowns: Map<CooldownKey, number>;
-    activeBuffs: BuffInstance[];
-    activeDoTs: DoTInstance[];
+    activeBuffs: ActiveBuff[];
+    activeDoTs: ActiveDoT[];
 }
 
 interface DamageIntentComponent {

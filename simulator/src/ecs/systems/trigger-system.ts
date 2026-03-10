@@ -20,11 +20,11 @@ import {
     TriggerType,
     TriggerConditionType,
     EffectDef,
-} from '../types/trigger-types';
-import { TriggerCounterKey, CooldownKey } from '../types/keys';
-import { DoTInstance, BuffInstance } from '../types/status-types';
-import { EnemyType } from '../types/enums';
-import { RngService } from './rng';
+} from '../../types/trigger-types';
+import { TriggerCounterKey, CooldownKey } from '../../types/keys';
+import { ActiveDoT, ActiveBuff } from '../../types/status-types';
+import { EnemyType } from '../../types/enums';
+import { RngService } from '../../engine/rng';
 
 /** Maximum secondary-effect pass depth before truncation (replaces CombatEventBus.MAX_DEPTH). */
 export const MAX_EFFECT_PASS_DEPTH = 3;
@@ -47,8 +47,8 @@ export interface TriggerEvalContext {
     readonly targetDistanceMeters: number;
     readonly currentTimeSeconds: number;
     /** Active DoTs on the primary target (for TargetAtMaxStacks condition). */
-    readonly targetActiveDoTs: readonly DoTInstance[];
-    readonly targetActiveBuffs: readonly BuffInstance[];
+    readonly targetActiveDoTs: readonly ActiveDoT[];
+    readonly targetActiveBuffs: readonly ActiveBuff[];
     /** Counter state — mutable, owned by the engine/simulation run. */
     readonly counters: Map<TriggerCounterKey, number>;
     /** Cooldown expiry times — mutable, owned by the engine/simulation run. */
@@ -97,6 +97,31 @@ export function triggerMatches(
             }
             return false;
         }
+
+        case TriggerType.EveryNCrits: {
+            if (event.triggerType !== TriggerType.OnHit || !event.isCrit) return false;
+            const current = (ctx.counters.get(trigger.counterKey) ?? 0) + 1;
+            ctx.counters.set(trigger.counterKey, current);
+            if (current >= trigger.n) {
+                ctx.counters.set(trigger.counterKey, 0);
+                return true;
+            }
+            return false;
+        }
+
+        case TriggerType.EveryNWeakspotHits: {
+            if (event.triggerType !== TriggerType.OnHit || !event.isWeakspot) return false;
+            const current = (ctx.counters.get(trigger.counterKey) ?? 0) + 1;
+            ctx.counters.set(trigger.counterKey, current);
+            if (current >= trigger.n) {
+                ctx.counters.set(trigger.counterKey, 0);
+                return true;
+            }
+            return false;
+        }
+
+        default:
+            return false;
     }
 }
 
@@ -132,13 +157,15 @@ export function evaluateTriggerCondition(
         }
 
         case TriggerConditionType.And:
-            return condition.conditions.every(c => evaluateTriggerCondition(c, event, ctx));
+            return condition.conditions.every((c: TriggerConditionDef) => evaluateTriggerCondition(c, event, ctx));
 
         case TriggerConditionType.Or:
-            return condition.conditions.some(c => evaluateTriggerCondition(c, event, ctx));
+            return condition.conditions.some((c: TriggerConditionDef) => evaluateTriggerCondition(c, event, ctx));
 
         case TriggerConditionType.Not:
             return !evaluateTriggerCondition(condition.condition, event, ctx);
+        default:
+            return false;
     }
 }
 

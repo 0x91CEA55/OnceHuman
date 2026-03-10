@@ -1,11 +1,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DamageDashboard } from '../components/DamageDashboard';
-import { Player, PlayerStats } from '../models/player';
-import { Loadout } from '../models/equipment';
+import { World } from '../ecs/world';
+import { createWeaponComponent, createModComponent } from '../ecs/factories';
+import { LoadoutComponent } from '../ecs/types';
 import { EncounterConditions } from '../types/common';
-import { createWeapon } from '../data/weapons';
-import { createModInstance, DEFAULT_SUBSTATS } from '../data/mods';
-import { ModKey, WeaponKey, StatType } from '../types/enums';
+import { DEFAULT_SUBSTATS } from '../data/mods';
+import { ModKey, WeaponKey, StatType, AmmunitionType } from '../types/enums';
 
 // Mock ResizeObserver for Radix/Shadcn components
 global.ResizeObserver = class ResizeObserver {
@@ -18,17 +18,41 @@ describe('Simulation Scrubber Reactivity', () => {
     test('scrubber updates stats via onScrub callback during timeline navigation', async () => {
         const onScrub = jest.fn();
 
-        // Setup player with Momentum Up mod
-        const loadout = new Loadout();
-        const momentumUp = createModInstance(ModKey.MomentumUp, DEFAULT_SUBSTATS);
-        loadout.weapon = createWeapon(WeaponKey.DE50Jaws, 1, 1, 0, momentumUp);
-        const player = new Player(loadout, new PlayerStats(), 100);
+        const world = new World();
+        const playerId = world.createEntity('player');
         const conditions = new EncounterConditions();
+
+        const momentumUp = createModComponent(ModKey.MomentumUp, DEFAULT_SUBSTATS as any);
+        const weapon = createWeaponComponent(
+            WeaponKey.DE50Jaws,
+            1, // star
+            1, // tier
+            0, // calibrationLevel
+            'none' as any, // style
+            0, // bonus
+            StatType.CritDamagePercent, // secondary
+            0, // secondaryVal
+            momentumUp
+        );
+
+        const loadout: LoadoutComponent = { weapon };
+        world.addComponent(playerId, 'loadout', loadout);
+        world.addComponent(playerId, 'stats', { snapshot: {} as Record<StatType, number> });
+        world.addComponent(playerId, 'flags', { activeFlags: new Set() });
+        world.addComponent(playerId, 'status', { activeBuffs: [], activeDoTs: [] });
+        world.addComponent(playerId, 'resources', {
+            sanity: conditions.playerSanity,
+            maxSanity: conditions.maxPlayerSanity,
+            deviantPower: conditions.playerDeviantPower,
+            maxDeviantPower: conditions.maxPlayerDeviantPower
+        });
 
         render(
             <DamageDashboard
-                player={player}
+                world={world}
+                playerId={playerId}
                 conditions={conditions}
+                selectedAmmunition={AmmunitionType.Copper}
                 onScrub={onScrub}
             />
         );

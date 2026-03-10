@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SimulationLogEntry } from '../engine/damage-engine';
+import { SimulationLogEntry } from '../engine/simulation-runner';
 
 interface TerminalFooterProps {
     logs: SimulationLogEntry[];

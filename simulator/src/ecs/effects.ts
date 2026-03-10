@@ -1,20 +1,12 @@
-// simulator/src/models/effect.ts
+// simulator/src/ecs/effects.ts
 
 import { StatType, FlagType } from '../types/enums';
-import { Player } from './player';
-import { EncounterConditions, AggregationContext } from '../types/common';
+import { EncounterConditions, AggregationContext, IPlayer, IEffect } from '../types/common';
 
-/**
- * Legacy compatibility shim — executeDynamic no longer called by the engine.
- * @deprecated Use TriggerDefinition / EffectDef (ADR-003) for all dynamic effects.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type LegacyCombatContext = any;
-
-export abstract class BaseEffect {
+export abstract class BaseEffect implements IEffect {
     constructor(public source?: string) {}
 
-    abstract applyStatic(player: Player, conditions: EncounterConditions, multiplier: number): void;
+    abstract applyStatic(player: IPlayer, conditions: EncounterConditions, multiplier: number): void;
 
     /**
      * ADR-007: Context-aware application path.
@@ -25,29 +17,31 @@ export abstract class BaseEffect {
         this.applyStatic(ctx.player, ctx.conditions, multiplier);
     }
 
-    /** @deprecated Not called by the ADR-003 engine. Stub implementations are acceptable. */
-    executeDynamic(_ctx: LegacyCombatContext, _event?: unknown): void {}
     abstract getDescription(): string;
-    abstract clone(newSource?: string): BaseEffect;
+    abstract clone(newSource?: string): IEffect;
 }
 
 export class ConditionalEffect extends BaseEffect {
     constructor(
         public readonly predicate: (ctx: AggregationContext) => boolean,
-        public readonly effects: BaseEffect[],
+        public readonly effects: IEffect[],
         source?: string
     ) {
         super(source);
     }
 
-    applyStatic(player: Player, conditions: EncounterConditions, multiplier: number = 1): void {
-        // Legacy path: builds context with hardcoded ammoPercent=1.0.
-        // Use applyWithContext for ammo-sensitive predicates.
+    applyStatic(player: IPlayer, conditions: EncounterConditions, multiplier: number = 1): void {
         const ctx: AggregationContext = {
             player,
             conditions,
             ammoPercent: 1.0,
-            loadout: player.loadout
+            loadout: player.loadout,
+            resources: {
+                sanity: conditions.playerSanity,
+                maxSanity: conditions.maxPlayerSanity,
+                deviantPower: conditions.playerDeviantPower,
+                maxDeviantPower: conditions.maxPlayerDeviantPower
+            }
         };
         if (this.predicate(ctx)) {
             for (const effect of this.effects) {
@@ -56,10 +50,6 @@ export class ConditionalEffect extends BaseEffect {
         }
     }
 
-    /**
-     * ADR-007: Override to propagate real ammoPercent from the outer context.
-     * This is the correct path for ammo-sensitive conditionals (e.g. MomentumUp).
-     */
     override applyWithContext(ctx: AggregationContext, multiplier: number = 1): void {
         if (this.predicate(ctx)) {
             for (const effect of this.effects) {
@@ -77,11 +67,6 @@ export class ConditionalEffect extends BaseEffect {
     }
 }
 
-/**
- * ADR-006 §2.1 / ADR-007: Effect whose stat contribution is computed at aggregation time.
- * Supports stack-dependent, position-dependent, or condition-derived bonuses.
- * Uses applyWithContext exclusively — applyStatic delegates but loses ammoPercent precision.
- */
 export class DynamicStatEffect extends BaseEffect {
     constructor(
         public readonly stat: StatType,
@@ -91,22 +76,23 @@ export class DynamicStatEffect extends BaseEffect {
         super(source);
     }
 
-    applyStatic(player: Player, conditions: EncounterConditions, multiplier: number = 1): void {
-        // Fallback: ammoPercent is 1.0. Correct for HP/Sanity-dependent mods,
-        // incorrect for ammo-position-dependent mods. Prefer applyWithContext.
+    applyStatic(player: IPlayer, conditions: EncounterConditions, multiplier: number = 1): void {
         const ctx: AggregationContext = {
             player,
             conditions,
             ammoPercent: 1.0,
-            loadout: player.loadout
+            loadout: player.loadout,
+            resources: {
+                sanity: conditions.playerSanity,
+                maxSanity: conditions.maxPlayerSanity,
+                deviantPower: conditions.playerDeviantPower,
+                maxDeviantPower: conditions.maxPlayerDeviantPower
+            }
         };
         const dynamicValue = this.valueFn(ctx);
         player.stats.add(this.stat, dynamicValue * multiplier, this.source || 'Dynamic Calculation');
     }
 
-    /**
-     * ADR-007: Override for full-fidelity context access.
-     */
     override applyWithContext(ctx: AggregationContext, multiplier: number = 1): void {
         const dynamicValue = this.valueFn(ctx);
         ctx.player.stats.add(this.stat, dynamicValue * multiplier, this.source || 'Dynamic Calculation');
@@ -130,7 +116,7 @@ export class IncreaseStatEffect extends BaseEffect {
         super(source);
     }
 
-    applyStatic(player: Player, _conditions: EncounterConditions, multiplier: number = 1): void {
+    applyStatic(player: IPlayer, _conditions: EncounterConditions, multiplier: number = 1): void {
         player.stats.add(this.stat, this.value * multiplier, this.source || 'Bonus');
     }
 
@@ -152,7 +138,7 @@ export class SetFlagEffect extends BaseEffect {
         super(source);
     }
 
-    applyStatic(player: Player, _conditions: EncounterConditions, _multiplier: number = 1): void {
+    applyStatic(player: IPlayer, _conditions: EncounterConditions, _multiplier: number = 1): void {
         player.setFlag(this.flag, this.value);
     }
 
@@ -174,7 +160,7 @@ export class StaticAttributeEffect extends BaseEffect {
         super(source);
     }
 
-    applyStatic(player: Player, _conditions: EncounterConditions, multiplier: number = 1): void {
+    applyStatic(player: IPlayer, _conditions: EncounterConditions, multiplier: number = 1): void {
         player.stats.add(this.stat, this.value * multiplier, this.source || 'Static Attribute');
     }
 
@@ -187,15 +173,10 @@ export class StaticAttributeEffect extends BaseEffect {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Legacy effect class shells — kept for BuildBreakdown.tsx instanceof checks.
-// executeDynamic is a no-op stub; the ADR-003 engine uses EffectDef instead.
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** @deprecated ADR-003: replaced by DynEffectType.DamageInstance in trigger-definitions.ts */
 export class ShrapnelEffect extends BaseEffect {
     constructor(source?: string) { super(source || 'Shrapnel'); }
-    applyStatic(_player: Player, _conditions: EncounterConditions, _multiplier: number = 1): void {}
+    applyStatic(_player: IPlayer, _conditions: EncounterConditions, _multiplier: number = 1): void {}
     getDescription(): string { return `Trigger Shrapnel (50% Attack)`; }
     clone(newSource?: string): ShrapnelEffect { return new ShrapnelEffect(newSource ?? this.source); }
 }
@@ -208,7 +189,7 @@ export class ExplosionEffect extends BaseEffect {
         public readonly cooldownSeconds: number = 0,
         source?: string
     ) { super(source); }
-    applyStatic(_player: Player, _conditions: EncounterConditions, _multiplier: number = 1): void {}
+    applyStatic(_player: IPlayer, _conditions: EncounterConditions, _multiplier: number = 1): void {}
     getDescription(): string { return `Trigger explosion scaling ${this.scalingFactor}x off ${this.statType}`; }
     clone(newSource?: string): ExplosionEffect {
         return new ExplosionEffect(this.scalingFactor, this.statType, this.cooldownSeconds, newSource ?? this.source);
@@ -222,10 +203,10 @@ export class BuffEffect extends BaseEffect {
         public readonly name: string,
         public readonly durationSeconds: number,
         public readonly maxStacks: number,
-        public readonly effects: BaseEffect[],
+        public readonly effects: IEffect[],
         source?: string
     ) { super(source); }
-    applyStatic(_player: Player, _conditions: EncounterConditions, _multiplier: number = 1): void {}
+    applyStatic(_player: IPlayer, _conditions: EncounterConditions, _multiplier: number = 1): void {}
     getDescription(): string { return `Grants ${this.name} buff for ${this.durationSeconds}s`; }
     clone(newSource?: string): BuffEffect {
         return new BuffEffect(this.id, this.name, this.durationSeconds, this.maxStacks, this.effects.map(e => e.clone()), newSource ?? this.source);
@@ -247,7 +228,7 @@ export class DoTEffect extends BaseEffect {
         public readonly durationStat?: StatType,
         source?: string
     ) { super(source); }
-    applyStatic(_player: Player, _conditions: EncounterConditions, _multiplier: number = 1): void {}
+    applyStatic(_player: IPlayer, _conditions: EncounterConditions, _multiplier: number = 1): void {}
     getDescription(): string { return `Inflicts ${this.name} DoT for ${this.durationSeconds}s`; }
     clone(newSource?: string): DoTEffect {
         return new DoTEffect(this.id, this.name, this.tickInterval, this.durationSeconds, this.maxStacks, this.scalingFactor, this.baseStatType, this.trait, this.maxStacksStat, this.durationStat, newSource ?? this.source);
